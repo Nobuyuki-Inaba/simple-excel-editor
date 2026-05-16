@@ -1,0 +1,85 @@
+{
+  "name": "simple-excel-editor",
+  "displayName": "Simple Excel Editor",
+  "description": "Edit Excel files directly in VSCode with a spreadsheet-like interface",
+  "version": "0.1.0",
+  "publisher": "nobuyuki-inaba",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["excel", "xlsx", "csv", "spreadsheet", "editor"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "simpleExcelEditor.editor",
+        "displayName": "Simple Excel Editor",
+        "selector": [
+          { "filenamePattern": "*.xlsx" },
+          { "filenamePattern": "*.xls" },
+          { "filenamePattern": "*.xlsm" }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "simpleExcelEditor.openSettings",
+        "title": "Simple Excel Editor: 設定を開く"
+      }
+    ],
+    "configuration": {
+      "title": "Simple Excel Editor",
+      "properties": {
+        "simpleExcelEditor.javaPath": {
+          "type": "string",
+          "default": "",
+          "description": "Javaの実行ファイルパス。空の場合はVSCode Java拡張またはJAVA_HOMEから自動検出します。"
+        },
+        "simpleExcelEditor.jarPath": {
+          "type": "string",
+          "default": "",
+          "description": "exceltocsv JARファイルのパス。空の場合は拡張機能の lib/ フォルダのJARを使用します。"
+        },
+        "simpleExcelEditor.nullMarkers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["\\N"],
+          "description": "NULLとして扱う文字列。空文字列とは区別されます。"
+        },
+        "simpleExcelEditor.encoding": {
+          "type": "string",
+          "enum": ["UTF-8"],
+          "enumDescriptions": ["UTF-8 (BOMなし)"],
+          "default": "UTF-8",
+          "description": "CSV変換時の文字エンコーディング。"
+        },
+        "simpleExcelEditor.pageSize": {
+          "type": "number",
+          "default": 200,
+          "minimum": 50,
+          "maximum": 2000,
+          "description": "1ページに表示する行数。"
+        },
+        "simpleExcelEditor.hasHeader": {
+          "type": "boolean",
+          "default": true,
+          "description": "最初の行をヘッダ行として扱います。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.0"
+  }
+}

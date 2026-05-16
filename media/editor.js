@@ -1,0 +1,487 @@
+/* global acquireVsCodeApi */
+(function () {
+  'use strict';
+
+  const vscode = acquireVsCodeApi();
+
+  // ── State ──────────────────────────────────────────────────────────────────
+
+  const S = {
+    sheets: /** @type {string[]} */ ([]),
+    activeSheet: '',
+    columns: /** @type {string[]} */ ([]),
+    rows: /** @type {string[][]} */ ([]),   // all data rows for current sheet
+    pageSize: 200,
+    page: 0,                               // 0-based current page
+    nullMarkers: /** @type {string[]} */ (['\\N']),
+    selectedRow: -1,
+    selectedCol: -1,
+    dirty: false,
+  };
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+
+  const $ = id => document.getElementById(id);
+
+  const headerRow    = $('header-row');
+  const tableBody    = $('table-body');
+  const sheetTabsEl  = $('sheet-tabs');
+  const pageInfo     = $('page-info');
+  const rowCount     = $('row-count');
+  const statusBar    = $('status-bar');
+  const btnFirst     = $('btn-first');
+  const btnPrev      = $('btn-prev');
+  const btnNext      = $('btn-next');
+  const btnLast      = $('btn-last');
+  const btnAddRow    = $('btn-add-row');
+  const btnDelRow    = $('btn-delete-row');
+  const btnAddCol    = $('btn-add-col');
+  const btnDelCol    = $('btn-delete-col');
+
+  // ── Message handling ───────────────────────────────────────────────────────
+
+  window.addEventListener('message', event => {
+    const msg = event.data;
+    switch (msg.type) {
+      case 'init':
+        S.sheets      = msg.sheets;
+        S.activeSheet = msg.activeSheet;
+        S.columns     = msg.columns;
+        S.rows        = msg.rows;
+        S.pageSize    = msg.pageSize;
+        S.nullMarkers = msg.nullMarkers;
+        S.page        = 0;
+        S.dirty       = false;
+        S.selectedRow = -1;
+        S.selectedCol = -1;
+        render();
+        break;
+
+      case 'sheetData':
+        S.activeSheet = msg.sheetName;
+        S.columns     = msg.columns;
+        S.rows        = msg.rows;
+        S.page        = 0;
+        S.selectedRow = -1;
+        S.selectedCol = -1;
+        renderSheetTabs();
+        renderTable();
+        renderPagination();
+        updateStatus();
+        break;
+
+      case 'requestSave':
+        sendSaveData();
+        break;
+
+      case 'error':
+        statusBar.textContent = '⚠ ' + msg.message;
+        break;
+    }
+  });
+
+  // ── Outbound messages ──────────────────────────────────────────────────────
+
+  function markDirty() {
+    if (!S.dirty) {
+      S.dirty = true;
+      vscode.postMessage({ type: 'edit' });
+    }
+    updateStatus();
+  }
+
+  function sendSaveData() {
+    vscode.postMessage({
+      type: 'saveData',
+      sheetName: S.activeSheet,
+      columns: S.columns,
+      rows: S.rows,
+    });
+  }
+
+  function requestSwitchSheet(name) {
+    vscode.postMessage({
+      type: 'switchSheet',
+      sheetName: name,
+      // Send the current sheet's data so the extension can cache edits
+      currentData: {
+        sheetName: S.activeSheet,
+        columns: S.columns,
+        rows: S.rows,
+      },
+    });
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  function render() {
+    renderSheetTabs();
+    renderTable();
+    renderPagination();
+    updateStatus();
+  }
+
+  function renderSheetTabs() {
+    sheetTabsEl.innerHTML = '';
+    S.sheets.forEach(name => {
+      const tab = document.createElement('div');
+      tab.className = 'sheet-tab' + (name === S.activeSheet ? ' active' : '');
+      tab.textContent = name;
+      tab.title = name;
+      tab.addEventListener('click', () => {
+        if (name !== S.activeSheet) {
+          commitActiveEdit();
+          requestSwitchSheet(name);
+        }
+      });
+      sheetTabsEl.appendChild(tab);
+    });
+  }
+
+  function renderTable() {
+    renderHeader();
+    renderBody();
+  }
+
+  function renderHeader() {
+    headerRow.innerHTML = '';
+
+    // Row-number column
+    const thNum = document.createElement('th');
+    thNum.className = 'row-num-header';
+    thNum.textContent = '#';
+    headerRow.appendChild(thNum);
+
+    S.columns.forEach((col, ci) => {
+      const th = document.createElement('th');
+      th.textContent = col || `(${colLabel(ci)})`;
+      th.title = col;
+      th.dataset.col = String(ci);
+      if (ci === S.selectedCol) th.classList.add('selected-col-header');
+      th.addEventListener('click', () => selectColumn(ci));
+      headerRow.appendChild(th);
+    });
+  }
+
+  function renderBody() {
+    tableBody.innerHTML = '';
+    const offset = S.page * S.pageSize;
+    const slice  = S.rows.slice(offset, offset + S.pageSize);
+
+    slice.forEach((rowData, localRi) => {
+      const ri = offset + localRi;
+      const tr = document.createElement('tr');
+      tr.dataset.row = String(ri);
+      if (ri === S.selectedRow) tr.classList.add('selected-row');
+
+      // Row number
+      const tdNum = document.createElement('td');
+      tdNum.className = 'row-num';
+      tdNum.textContent = String(ri + 1);
+      tdNum.addEventListener('click', () => selectRow(ri));
+      tr.appendChild(tdNum);
+
+      // Data cells
+      S.columns.forEach((_, ci) => {
+        const value = rowData[ci] ?? '';
+        const td = makeCell(ri, ci, value);
+        tr.appendChild(td);
+      });
+
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function makeCell(ri, ci, value) {
+    const td = document.createElement('td');
+    td.dataset.row = String(ri);
+    td.dataset.col = String(ci);
+
+    setCellDisplay(td, value);
+
+    td.addEventListener('click', () => selectCell(ri, ci));
+    td.addEventListener('dblclick', () => startEdit(td, ri, ci));
+    return td;
+  }
+
+  function setCellDisplay(td, value) {
+    td.innerHTML = '';
+    td.classList.remove('null-cell');
+
+    if (isNullValue(value)) {
+      td.classList.add('null-cell');
+      const span = document.createElement('span');
+      span.className = 'null-label';
+      span.textContent = 'NULL';
+      td.appendChild(span);
+    } else {
+      td.textContent = value;
+    }
+  }
+
+  function renderPagination() {
+    const total = totalPages();
+    pageInfo.textContent = `${S.page + 1} / ${total}`;
+    rowCount.textContent  = `${S.rows.length} 行`;
+    btnFirst.disabled = S.page === 0;
+    btnPrev.disabled  = S.page === 0;
+    btnNext.disabled  = S.page >= total - 1;
+    btnLast.disabled  = S.page >= total - 1;
+  }
+
+  function updateStatus() {
+    const dirty = S.dirty ? ' ●' : '';
+    statusBar.textContent = S.activeSheet + dirty;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function totalPages() {
+    return Math.max(1, Math.ceil(S.rows.length / S.pageSize));
+  }
+
+  function isNullValue(v) {
+    return S.nullMarkers.includes(v);
+  }
+
+  function primaryNullMarker() {
+    return S.nullMarkers[0] ?? '\\N';
+  }
+
+  function colLabel(i) {
+    let name = '';
+    let n = i;
+    do {
+      name = String.fromCharCode(65 + (n % 26)) + name;
+      n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return name;
+  }
+
+  // ── Selection ──────────────────────────────────────────────────────────────
+
+  function selectCell(ri, ci) {
+    S.selectedRow = ri;
+    S.selectedCol = ci;
+    refreshSelection();
+  }
+
+  function selectRow(ri) {
+    S.selectedRow = ri;
+    S.selectedCol = -1;
+    refreshSelection();
+  }
+
+  function selectColumn(ci) {
+    S.selectedCol = ci;
+    S.selectedRow = -1;
+    // Highlight column header
+    document.querySelectorAll('th.selected-col-header').forEach(
+      el => el.classList.remove('selected-col-header')
+    );
+    const th = headerRow.querySelector(`th[data-col="${ci}"]`);
+    if (th) th.classList.add('selected-col-header');
+  }
+
+  function refreshSelection() {
+    document.querySelectorAll('tr.selected-row').forEach(el => el.classList.remove('selected-row'));
+    document.querySelectorAll('td.selected-cell').forEach(el => el.classList.remove('selected-cell'));
+    document.querySelectorAll('th.selected-col-header').forEach(
+      el => el.classList.remove('selected-col-header')
+    );
+
+    const tr = tableBody.querySelector(`tr[data-row="${S.selectedRow}"]`);
+    if (tr) tr.classList.add('selected-row');
+
+    if (S.selectedRow >= 0 && S.selectedCol >= 0) {
+      const td = tableBody.querySelector(
+        `td[data-row="${S.selectedRow}"][data-col="${S.selectedCol}"]`
+      );
+      if (td) td.classList.add('selected-cell');
+    }
+  }
+
+  // ── Cell editing ───────────────────────────────────────────────────────────
+
+  let activeEdit = /** @type {{ input: HTMLTextAreaElement, td: HTMLElement, ri: number, ci: number }|null} */ (null);
+
+  function startEdit(td, ri, ci) {
+    if (activeEdit) {
+      if (activeEdit.ri === ri && activeEdit.ci === ci) return;
+      commitActiveEdit();
+    }
+
+    selectCell(ri, ci);
+
+    const currentValue = S.rows[ri]?.[ci] ?? '';
+    td.classList.add('editing');
+    td.innerHTML = '';
+
+    const input = document.createElement('textarea');
+    input.className = 'cell-input';
+    input.value = currentValue;
+    input.rows = 1;
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    autoResize(input);
+    input.addEventListener('input', () => autoResize(input));
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        commitActiveEdit();
+        moveFocus(ri + 1, ci);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        commitActiveEdit();
+        if (e.shiftKey) moveFocus(ri, ci - 1); else moveFocus(ri, ci + 1);
+      } else if (e.key === 'Escape') {
+        cancelActiveEdit();
+      } else if (e.key === 'n' && e.altKey) {
+        // Alt+N: insert the primary null marker
+        e.preventDefault();
+        input.value = primaryNullMarker();
+        autoResize(input);
+      }
+    });
+
+    // Commit on blur (e.g. clicking another cell)
+    input.addEventListener('blur', () => {
+      if (activeEdit && activeEdit.input === input) {
+        commitActiveEdit();
+      }
+    });
+
+    activeEdit = { input, td, ri, ci };
+  }
+
+  function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  }
+
+  function commitActiveEdit() {
+    if (!activeEdit) return;
+    const { input, td, ri, ci } = activeEdit;
+    const newValue = input.value;
+    activeEdit = null;
+
+    // Update state
+    while (S.rows.length <= ri) S.rows.push([]);
+    while (S.rows[ri].length <= ci) S.rows[ri].push('');
+    S.rows[ri][ci] = newValue;
+
+    td.classList.remove('editing');
+    setCellDisplay(td, newValue);
+
+    markDirty();
+  }
+
+  function cancelActiveEdit() {
+    if (!activeEdit) return;
+    const { td, ri, ci } = activeEdit;
+    activeEdit = null;
+    td.classList.remove('editing');
+    setCellDisplay(td, S.rows[ri]?.[ci] ?? '');
+  }
+
+  function moveFocus(ri, ci) {
+    if (ri < 0 || ri >= S.rows.length) return;
+    if (ci < 0 || ci >= S.columns.length) return;
+
+    // Switch page if needed
+    const targetPage = Math.floor(ri / S.pageSize);
+    if (targetPage !== S.page) {
+      S.page = targetPage;
+      renderBody();
+      renderPagination();
+    }
+
+    const td = tableBody.querySelector(`td[data-row="${ri}"][data-col="${ci}"]`);
+    if (td) startEdit(/** @type {HTMLElement} */ (td), ri, ci);
+  }
+
+  // ── Row / column operations ────────────────────────────────────────────────
+
+  btnAddRow.addEventListener('click', () => {
+    commitActiveEdit();
+    const insertAt = S.selectedRow >= 0 ? S.selectedRow + 1 : S.rows.length;
+    S.rows.splice(insertAt, 0, new Array(S.columns.length).fill(''));
+    S.selectedRow = insertAt;
+    markDirty();
+    renderBody();
+    renderPagination();
+  });
+
+  btnDelRow.addEventListener('click', () => {
+    commitActiveEdit();
+    if (S.selectedRow < 0 || S.selectedRow >= S.rows.length) return;
+    S.rows.splice(S.selectedRow, 1);
+    S.selectedRow = Math.min(S.selectedRow, S.rows.length - 1);
+    markDirty();
+    renderBody();
+    renderPagination();
+  });
+
+  btnAddCol.addEventListener('click', () => {
+    commitActiveEdit();
+    const insertAt = S.selectedCol >= 0 ? S.selectedCol + 1 : S.columns.length;
+    let name = 'NewColumn';
+    let n = 1;
+    while (S.columns.includes(name)) name = 'NewColumn' + n++;
+    S.columns.splice(insertAt, 0, name);
+    S.rows.forEach(row => row.splice(insertAt, 0, ''));
+    S.selectedCol = insertAt;
+    markDirty();
+    renderTable();
+  });
+
+  btnDelCol.addEventListener('click', () => {
+    commitActiveEdit();
+    if (S.selectedCol < 0 || S.selectedCol >= S.columns.length) return;
+    S.columns.splice(S.selectedCol, 1);
+    S.rows.forEach(row => row.splice(S.selectedCol, 1));
+    S.selectedCol = Math.min(S.selectedCol, S.columns.length - 1);
+    markDirty();
+    renderTable();
+  });
+
+  // ── Pagination controls ────────────────────────────────────────────────────
+
+  function goToPage(p) {
+    const max = totalPages() - 1;
+    if (p < 0 || p > max) return;
+    commitActiveEdit();
+    S.page = p;
+    renderBody();
+    renderPagination();
+  }
+
+  btnFirst.addEventListener('click', () => goToPage(0));
+  btnPrev.addEventListener('click',  () => goToPage(S.page - 1));
+  btnNext.addEventListener('click',  () => goToPage(S.page + 1));
+  btnLast.addEventListener('click',  () => goToPage(totalPages() - 1));
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      commitActiveEdit();
+      sendSaveData();
+    }
+    if (e.key === 'Delete' && S.selectedRow >= 0 && !activeEdit) {
+      // Clear selected row on Delete key (without removing it)
+      S.rows[S.selectedRow] = new Array(S.columns.length).fill('');
+      markDirty();
+      renderBody();
+    }
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+
+  vscode.postMessage({ type: 'ready' });
+
+})();
