@@ -269,6 +269,26 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         }
         break;
       }
+
+      case 'createSheet': {
+        const { columns, rows } = msg as { columns: string[]; rows: string[][] };
+        const input = await vscode.window.showInputBox({
+          prompt: '新しいシート名を入力してください',
+          placeHolder: '例: NewSheet',
+          validateInput: v => {
+            if (!v?.trim()) return 'シート名を入力してください';
+            if (doc.sheets.includes(v.trim())) return 'そのシート名は既に存在します';
+            return null;
+          },
+        });
+        if (!input) break;
+        const newSheetName = input.trim();
+        doc.sheets.push(newSheetName);
+        doc.cache.set(newSheetName, { columns, rows });
+        this._onChange.fire({ document: doc });
+        panel.webview.postMessage({ type: 'sheetAdded', sheets: doc.sheets });
+        break;
+      }
     }
   }
 
@@ -350,6 +370,10 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
   <div id="sheet-tabs-bar">
     <div id="sheet-tabs"></div>
+  </div>
+
+  <div id="context-menu">
+    <div class="ctx-item" id="ctx-create-sheet">選択行でシートを作成...</div>
   </div>
 
   <script src="${jsUri}"></script>

@@ -17,6 +17,8 @@
     selectedCol: -1,
     selectedCells: /* @__PURE__ */ new Set(),
     anchorCell: null,
+    selectedRows: /* @__PURE__ */ new Set(),
+    anchorRow: -1,
     history: [],
     historyIndex: -1,
     dirty: false
@@ -198,11 +200,12 @@
     slice.forEach(({ data: rowData, ri }) => {
       const tr = document.createElement("tr");
       tr.dataset.row = String(ri);
-      if (ri === S.selectedRow) tr.classList.add("selected-row");
+      const rowHighlighted = S.selectedRows.size > 0 ? S.selectedRows.has(ri) : ri === S.selectedRow;
+      if (rowHighlighted) tr.classList.add("selected-row");
       const tdNum = document.createElement("td");
       tdNum.className = "row-num";
       tdNum.textContent = String(ri + 1);
-      tdNum.addEventListener("click", () => onRowClick(ri));
+      tdNum.addEventListener("click", (e) => onRowClick(ri, e.shiftKey, e.ctrlKey || e.metaKey));
       tr.appendChild(tdNum);
       S.columns.forEach((_, ci) => {
         const value = rowData[ci] ?? "";
@@ -263,7 +266,9 @@
   }
   function updateStatus() {
     const dirty = S.dirty ? " \u25CF" : "";
-    if (S.selectedCells.size > 1) {
+    if (S.selectedRows.size > 1) {
+      statusBar.textContent = `${S.selectedRows.size}\u884C \u9078\u629E\u4E2D` + dirty;
+    } else if (S.selectedCells.size > 1) {
       const coords = [...S.selectedCells].map((k) => k.split(",").map(Number));
       const rowSet = new Set(coords.map(([r]) => r));
       const colSet = new Set(coords.map(([, c]) => c));
@@ -304,6 +309,8 @@
     return cells;
   }
   function selectCell(ri, ci, shiftKey = false, ctrlKey = false) {
+    S.selectedRows = /* @__PURE__ */ new Set();
+    S.anchorRow = -1;
     if (shiftKey && S.anchorCell !== null) {
       S.selectedCells = buildRangeSet(S.anchorCell.ri, S.anchorCell.ci, ri, ci);
       S.selectedRow = ri;
@@ -328,7 +335,20 @@
     applyDuplicateHighlight(S.selectedCol);
     updateStatus();
   }
-  function selectRow(ri) {
+  function selectRow(ri, shift = false, ctrl = false) {
+    if (shift && S.anchorRow >= 0) {
+      const min = Math.min(S.anchorRow, ri);
+      const max = Math.max(S.anchorRow, ri);
+      S.selectedRows = /* @__PURE__ */ new Set();
+      for (let r = min; r <= max; r++) S.selectedRows.add(r);
+    } else if (ctrl) {
+      if (S.selectedRows.has(ri)) S.selectedRows.delete(ri);
+      else S.selectedRows.add(ri);
+      S.anchorRow = ri;
+    } else {
+      S.selectedRows = /* @__PURE__ */ new Set([ri]);
+      S.anchorRow = ri;
+    }
     S.selectedRow = ri;
     S.selectedCol = -1;
     S.selectedCells = /* @__PURE__ */ new Set();
@@ -340,6 +360,8 @@
   function selectColumn(ci) {
     S.selectedCol = ci;
     S.selectedRow = -1;
+    S.selectedRows = /* @__PURE__ */ new Set();
+    S.anchorRow = -1;
     S.selectedCells = /* @__PURE__ */ new Set();
     S.anchorCell = null;
     document.querySelectorAll("th.selected-col-header").forEach(
@@ -357,8 +379,15 @@
     document.querySelectorAll("th.selected-col-header").forEach(
       (el) => el.classList.remove("selected-col-header")
     );
-    const tr = tableBody.querySelector(`tr[data-row="${S.selectedRow}"]`);
-    if (tr) tr.classList.add("selected-row");
+    if (S.selectedRows.size > 0) {
+      S.selectedRows.forEach((ri) => {
+        const tr = tableBody.querySelector(`tr[data-row="${ri}"]`);
+        if (tr) tr.classList.add("selected-row");
+      });
+    } else {
+      const tr = tableBody.querySelector(`tr[data-row="${S.selectedRow}"]`);
+      if (tr) tr.classList.add("selected-row");
+    }
     if (S.selectedCells.size > 1) {
       S.selectedCells.forEach((key) => {
         const [r, c] = key.split(",");
@@ -686,12 +715,30 @@
   registerRenderHandlers({
     onCellClick: (ri, ci, shift, ctrl) => selectCell(ri, ci, shift, ctrl),
     onCellDblClick: (td, ri, ci) => startEdit(td, ri, ci),
-    onRowClick: (ri) => selectRow(ri),
+    onRowClick: (ri, shift, ctrl) => selectRow(ri, shift, ctrl),
     onColClick: (ci) => selectColumn(ci),
     onColDblClick: (th, ci) => startHeaderEdit(th, ci),
     onCommitEdit: () => commitActiveEdit()
   });
   setupListeners();
+  var contextMenu = document.getElementById("context-menu");
+  var ctxCreateSheet = document.getElementById("ctx-create-sheet");
+  document.addEventListener("click", () => contextMenu.classList.remove("visible"));
+  document.addEventListener("contextmenu", (e) => {
+    contextMenu.classList.remove("visible");
+    const target = e.target;
+    if (target.closest("tr[data-row]") && S.selectedRows.size > 0) {
+      e.preventDefault();
+      contextMenu.style.left = e.clientX + "px";
+      contextMenu.style.top = e.clientY + "px";
+      contextMenu.classList.add("visible");
+    }
+  });
+  ctxCreateSheet.addEventListener("click", () => {
+    contextMenu.classList.remove("visible");
+    const rows = [...S.selectedRows].sort((a, b) => a - b).map((ri) => [...S.rows[ri] ?? []]);
+    vscode.postMessage({ type: "createSheet", columns: [...S.columns], rows });
+  });
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
@@ -724,6 +771,9 @@
       markDirty();
       renderBody();
     }
+    if (e.key === "Escape") {
+      contextMenu.classList.remove("visible");
+    }
   });
   window.addEventListener("message", (event) => {
     const msg = event.data;
@@ -744,6 +794,8 @@
         S.selectedCol = -1;
         S.selectedCells = /* @__PURE__ */ new Set();
         S.anchorCell = null;
+        S.selectedRows = /* @__PURE__ */ new Set();
+        S.anchorRow = -1;
         S.history = [{ rows: msg.rows.map((r) => [...r]), columns: [...msg.columns] }];
         S.historyIndex = 0;
         render();
@@ -759,12 +811,18 @@
         S.selectedCol = -1;
         S.selectedCells = /* @__PURE__ */ new Set();
         S.anchorCell = null;
+        S.selectedRows = /* @__PURE__ */ new Set();
+        S.anchorRow = -1;
         S.history = [{ rows: msg.rows.map((r) => [...r]), columns: [...msg.columns] }];
         S.historyIndex = 0;
         renderSheetTabs();
         renderTable();
         renderPagination();
         updateStatus();
+        break;
+      case "sheetAdded":
+        S.sheets = msg.sheets;
+        renderSheetTabs();
         break;
       case "requestSave":
         sendSaveData();

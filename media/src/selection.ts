@@ -14,6 +14,8 @@ export function buildRangeSet(r1: number, c1: number, r2: number, c2: number): S
 }
 
 export function selectCell(ri: number, ci: number, shiftKey = false, ctrlKey = false): void {
+  S.selectedRows = new Set();
+  S.anchorRow = -1;
   if (shiftKey && S.anchorCell !== null) {
     S.selectedCells = buildRangeSet(S.anchorCell.ri, S.anchorCell.ci, ri, ci);
     S.selectedRow = ri;
@@ -39,7 +41,20 @@ export function selectCell(ri: number, ci: number, shiftKey = false, ctrlKey = f
   updateStatus();
 }
 
-export function selectRow(ri: number): void {
+export function selectRow(ri: number, shift = false, ctrl = false): void {
+  if (shift && S.anchorRow >= 0) {
+    const min = Math.min(S.anchorRow, ri);
+    const max = Math.max(S.anchorRow, ri);
+    S.selectedRows = new Set();
+    for (let r = min; r <= max; r++) S.selectedRows.add(r);
+  } else if (ctrl) {
+    if (S.selectedRows.has(ri)) S.selectedRows.delete(ri);
+    else S.selectedRows.add(ri);
+    S.anchorRow = ri;
+  } else {
+    S.selectedRows = new Set([ri]);
+    S.anchorRow = ri;
+  }
   S.selectedRow = ri;
   S.selectedCol = -1;
   S.selectedCells = new Set();
@@ -52,6 +67,8 @@ export function selectRow(ri: number): void {
 export function selectColumn(ci: number): void {
   S.selectedCol = ci;
   S.selectedRow = -1;
+  S.selectedRows = new Set();
+  S.anchorRow = -1;
   S.selectedCells = new Set();
   S.anchorCell = null;
   document.querySelectorAll('th.selected-col-header').forEach(
@@ -71,8 +88,15 @@ export function refreshSelection(): void {
     el => el.classList.remove('selected-col-header')
   );
 
-  const tr = tableBody.querySelector(`tr[data-row="${S.selectedRow}"]`);
-  if (tr) tr.classList.add('selected-row');
+  if (S.selectedRows.size > 0) {
+    S.selectedRows.forEach(ri => {
+      const tr = tableBody.querySelector(`tr[data-row="${ri}"]`);
+      if (tr) tr.classList.add('selected-row');
+    });
+  } else {
+    const tr = tableBody.querySelector(`tr[data-row="${S.selectedRow}"]`);
+    if (tr) tr.classList.add('selected-row');
+  }
 
   if (S.selectedCells.size > 1) {
     S.selectedCells.forEach(key => {

@@ -367,3 +367,39 @@ td.editing {
   border-top: 2px solid var(--vscode-focusBorder);
   font-weight: 500;
 }
+
+/* ── Context menu ─────────────────────────────────────────────────────────── */
+#context-menu {
+  display: none;
+  position: fixed;
+  z-index: 100;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-editorGroup-border));
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 180px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+#context-menu.visible {
+  display: block;
+}
+
+.ctx-item {
+  padding: 5px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  white-space: nowrap;
+  user-select: none;
+}
+
+.ctx-item:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+}
+
+/* Row number cursor hint for multi-select */
+td.row-num {
+  cursor: pointer;
+}
