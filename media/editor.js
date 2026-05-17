@@ -216,7 +216,8 @@
 
   function setCellDisplay(td, value) {
     td.innerHTML = '';
-    td.classList.remove('null-cell', 'empty-cell');
+    td.classList.remove('null-cell', 'empty-cell', 'date-warning-cell');
+    td.removeAttribute('title');
 
     if (isNullValue(value)) {
       td.classList.add('null-cell');
@@ -232,6 +233,10 @@
       td.appendChild(span);
     } else {
       td.textContent = value;
+      if (isDateLike(value) && !isValidIsoDate(value)) {
+        td.classList.add('date-warning-cell');
+        td.title = '⚠ 推奨フォーマット: yyyy-MM-dd または yyyy-MM-dd HH:mm:ss';
+      }
     }
   }
 
@@ -279,6 +284,23 @@
 
   function isEmptyValue(v) {
     return S.emptyMarkers.includes(v);
+  }
+
+  function isDateLike(v) {
+    if (!v || isNullValue(v) || isEmptyValue(v)) return false;
+    if (/^\d+$/.test(v)) return false; // 純粋な整数（IDなど）は除外
+    // yyyy/MM/dd, yyyy.MM.dd, yyyy-M-d など年始まりのパターン
+    if (/\d{4}[\/\.\-]\d{1,2}[\/\.\-]\d{1,2}/.test(v)) return true;
+    // dd/MM/yyyy, MM/dd/yyyy など年終わりのパターン
+    if (/\d{1,2}[\/\.]\d{1,2}[\/\.]\d{4}/.test(v)) return true;
+    // YYYYMMDD（19xx/20xx 始まりの8桁）
+    if (/^(19|20)\d{6}$/.test(v)) return true;
+    return false;
+  }
+
+  function isValidIsoDate(v) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ||
+           /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v);
   }
 
   function primaryNullMarker() {
