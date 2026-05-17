@@ -80,7 +80,6 @@ button:disabled {
   white-space: nowrap;
   width: max-content;
   min-width: 100%;
-  table-layout: fixed;
 }
 
 /* Sticky header */
@@ -119,6 +118,10 @@ th.row-num-header {
   text-align: center;
   cursor: default;
   color: var(--vscode-editorLineNumber-foreground);
+  position: sticky;
+  left: 0;
+  z-index: 11;
+  box-shadow: 1px 0 0 var(--vscode-editorGroup-border);
 }
 
 th.selected-col-header {
@@ -151,6 +154,10 @@ td.row-num {
   max-width: 48px;
   width: 48px;
   font-size: 11px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 1px 0 0 var(--vscode-editorGroup-border);
 }
 
 #data-table tr:hover td:not(.row-num) {
