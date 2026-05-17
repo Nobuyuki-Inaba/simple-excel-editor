@@ -228,6 +228,11 @@ td.date-warning-cell {
   background: color-mix(in srgb, #e57373 12%, transparent) !important;
 }
 
+/* Duplicate value cells */
+td.duplicate-cell {
+  background: color-mix(in srgb, var(--vscode-charts-orange, #f4a261) 18%, transparent) !important;
+}
+
 /* EMPTY cells */
 td.empty-cell {
   background: color-mix(in srgb, var(--vscode-charts-blue, #4fc3f7) 10%, transparent) !important;
