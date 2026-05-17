@@ -145,6 +145,10 @@
   };
   var onCommitEdit = () => {
   };
+  var onSheetRename = () => {
+  };
+  var onSheetTabContextMenu = () => {
+  };
   function registerRenderHandlers(handlers) {
     onCellClick = handlers.onCellClick;
     onCellDblClick = handlers.onCellDblClick;
@@ -152,6 +156,8 @@
     onColClick = handlers.onColClick;
     onColDblClick = handlers.onColDblClick;
     onCommitEdit = handlers.onCommitEdit;
+    onSheetRename = handlers.onSheetRename;
+    onSheetTabContextMenu = handlers.onSheetTabContextMenu;
   }
   function render() {
     renderSheetTabs();
@@ -166,13 +172,66 @@
       tab.className = "sheet-tab" + (name === S.activeSheet ? " active" : "");
       tab.textContent = name;
       tab.title = name;
+      tab.dataset.sheet = name;
       tab.addEventListener("click", () => {
         if (name !== S.activeSheet) {
           onCommitEdit();
           requestSwitchSheet(name);
         }
       });
+      tab.addEventListener("dblclick", (e) => {
+        e.preventDefault();
+        startSheetRename(tab, name);
+      });
+      tab.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onSheetTabContextMenu(name, e.clientX, e.clientY);
+      });
       sheetTabsEl.appendChild(tab);
+    });
+  }
+  function startSheetRename(tab, currentName) {
+    if (tab.classList.contains("editing")) return;
+    tab.classList.add("editing");
+    tab.textContent = "";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "sheet-tab-input";
+    input.value = currentName;
+    input.addEventListener("click", (e) => e.stopPropagation());
+    tab.appendChild(input);
+    input.focus();
+    input.select();
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      const newName = input.value.trim();
+      tab.classList.remove("editing");
+      tab.textContent = currentName;
+      tab.title = currentName;
+      if (!newName || newName === currentName || S.sheets.includes(newName)) return;
+      onSheetRename(currentName, newName);
+    };
+    const cancel = () => {
+      if (committed) return;
+      committed = true;
+      tab.classList.remove("editing");
+      tab.textContent = currentName;
+      tab.title = currentName;
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        input.value = currentName;
+        cancel();
+      }
     });
   }
   function renderTable() {
@@ -830,29 +889,76 @@
     onRowClick: (ri, shift, ctrl) => selectRow(ri, shift, ctrl),
     onColClick: (ci) => selectColumn(ci),
     onColDblClick: (th, ci) => startHeaderEdit(th, ci),
-    onCommitEdit: () => commitActiveEdit()
+    onCommitEdit: () => commitActiveEdit(),
+    onSheetRename: (oldName, newName) => {
+      vscode.postMessage({
+        type: "renameSheet",
+        oldName,
+        newName,
+        currentData: { sheetName: S.activeSheet, columns: [...S.columns], rows: S.rows.map((r) => [...r]) }
+      });
+    },
+    onSheetTabContextMenu: (sheetName, x, y) => {
+      contextMenuSheetName = sheetName;
+      showContextMenu(x, y, "ctx-mode-sheet");
+    }
   });
   setupListeners();
   var contextMenu = document.getElementById("context-menu");
   var ctxCreateSheet = document.getElementById("ctx-create-sheet");
-  document.addEventListener("click", () => contextMenu.classList.remove("visible"));
+  var ctxRenameSheet = document.getElementById("ctx-rename-sheet");
+  var ctxDeleteSheet = document.getElementById("ctx-delete-sheet");
+  var contextMenuSheetName = "";
+  function hideContextMenu() {
+    contextMenu.classList.remove("visible", "ctx-mode-row", "ctx-mode-sheet");
+  }
+  function showContextMenu(x, y, mode) {
+    contextMenu.classList.remove("visible", "ctx-mode-row", "ctx-mode-sheet");
+    contextMenu.style.left = x + "px";
+    contextMenu.style.top = y + "px";
+    contextMenu.classList.add("visible", mode);
+    const rect = contextMenu.getBoundingClientRect();
+    if (rect.bottom > window.innerHeight) {
+      contextMenu.style.top = Math.max(0, y - rect.height) + "px";
+    }
+    if (rect.right > window.innerWidth) {
+      contextMenu.style.left = Math.max(0, x - rect.width) + "px";
+    }
+  }
+  document.addEventListener("click", hideContextMenu);
   document.addEventListener("contextmenu", (e) => {
-    contextMenu.classList.remove("visible");
+    hideContextMenu();
     const target = e.target;
     if (target.closest("tr[data-row]") && S.selectedRows.size > 0) {
       e.preventDefault();
-      contextMenu.style.left = e.clientX + "px";
-      contextMenu.style.top = e.clientY + "px";
-      contextMenu.classList.add("visible");
+      showContextMenu(e.clientX, e.clientY, "ctx-mode-row");
     }
   });
   document.getElementById("btn-import-csv")?.addEventListener("click", () => {
     vscode.postMessage({ type: "importCsv" });
   });
   ctxCreateSheet.addEventListener("click", () => {
-    contextMenu.classList.remove("visible");
+    hideContextMenu();
     const rows = [...S.selectedRows].sort((a, b) => a - b).map((ri) => [...S.rows[ri] ?? []]);
     vscode.postMessage({ type: "createSheet", columns: [...S.columns], rows });
+  });
+  ctxRenameSheet.addEventListener("click", () => {
+    hideContextMenu();
+    const tabs = Array.from(sheetTabsEl.querySelectorAll(".sheet-tab"));
+    const tab = tabs.find((t) => t.dataset.sheet === contextMenuSheetName);
+    if (tab) startSheetRename(tab, contextMenuSheetName);
+  });
+  ctxDeleteSheet.addEventListener("click", () => {
+    hideContextMenu();
+    if (S.sheets.length <= 1) {
+      statusBar.textContent = "\u6700\u5F8C\u306E\u30B7\u30FC\u30C8\u306F\u524A\u9664\u3067\u304D\u307E\u305B\u3093";
+      return;
+    }
+    vscode.postMessage({
+      type: "deleteSheet",
+      sheetName: contextMenuSheetName,
+      currentData: { sheetName: S.activeSheet, columns: [...S.columns], rows: S.rows.map((r) => [...r]) }
+    });
   });
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -946,6 +1052,37 @@
         if (msg.allSheetColumns) S.allSheetColumns = msg.allSheetColumns;
         renderSheetTabs();
         break;
+      case "sheetRenamed": {
+        const { oldName, newName, sheets, allSheetColumns } = msg;
+        S.sheets = sheets;
+        if (S.activeSheet === oldName) S.activeSheet = newName;
+        S.allSheetColumns = allSheetColumns;
+        renderSheetTabs();
+        updateStatus();
+        break;
+      }
+      case "sheetDeleted": {
+        const { sheets, newActiveSheet, columns, rows, allSheetColumns } = msg;
+        S.sheets = sheets;
+        S.activeSheet = newActiveSheet;
+        S.columns = columns;
+        S.rows = rows;
+        S.allSheetColumns = allSheetColumns;
+        S.filterText = "";
+        filterInput.value = "";
+        S.page = 0;
+        S.selectedRow = -1;
+        S.selectedCol = -1;
+        S.selectedCells = /* @__PURE__ */ new Set();
+        S.anchorCell = null;
+        S.selectedRows = /* @__PURE__ */ new Set();
+        S.anchorRow = -1;
+        S.fkHighlightRows = /* @__PURE__ */ new Set();
+        S.history = [{ rows: rows.map((r) => [...r]), columns: [...columns] }];
+        S.historyIndex = 0;
+        render();
+        break;
+      }
       case "requestSave":
         sendSaveData();
         break;

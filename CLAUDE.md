@@ -82,6 +82,15 @@ All Excel parsing and writing is delegated to `lib/exceltocsv.jar` (not included
 - **Encoding**: UTF-8 only (BOM stripped if present). Shift-JIS support is a future task.
 - `JavaRunner.csvToExcel` accepts `update: boolean` (default `true`). Pass `false` when creating a new xlsx so `--update` is omitted.
 
+### Sheet Rename / Delete (issue #42)
+
+シートタブのダブルクリックまたは右クリックメニューからリネーム・削除が可能。
+
+- **リネーム**: タブをダブルクリック or 右クリック→「シート名を変更...」→インライン `<input>` 編集 → Enter/blur でコミット、Escape でキャンセル。重複名は無視（バリデーションで弾く）。webview が `renameSheet { oldName, newName, currentData }` 送信 → host が `doc.sheets[idx]` と `doc.cache` キーを更新 → `sheetRenamed { sheets, allSheetColumns }` 返却。
+- **削除**: 右クリック→「シートを削除」。シートが1枚のときはステータスバーにエラー表示。webview が `deleteSheet { sheetName, currentData }` 送信 → host が `vscode.window.showWarningMessage` で確認 → 削除後に隣シートへ切り替え → `sheetDeleted { sheets, newActiveSheet, columns, rows, allSheetColumns }` 返却。
+- **コンテキストメニュー**: `#context-menu` を `ctx-mode-row` / `ctx-mode-sheet` の CSS クラスで切り替え。行右クリックは `ctx-for-row` 項目、シートタブ右クリックは `ctx-for-sheet` 項目を表示。
+- `render.ts:startSheetRename(tab, currentName)` がインライン編集ロジックを担当。`main.ts` の `ctxRenameSheet` クリックハンドラからも呼ばれる。
+
 ### Cross-Sheet FK Navigation (issue #9)
 
 When a single cell is selected, `fkNav.ts:updateFkButtons` checks `S.allSheetColumns` to find other sheets with the same column name. If found, a "→ [sheet] で参照" button (or dropdown for multiple sheets) appears in the toolbar. Clicking it sets `S.pendingFkHighlight` and calls `requestSwitchSheet`. After `sheetData` arrives, `applyFkHighlight` scans the new sheet's rows, sets `S.fkHighlightRows`, and scrolls to the first match. Making any new selection clears the highlight via `clearFkHighlight`.

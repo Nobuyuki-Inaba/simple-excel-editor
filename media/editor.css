@@ -368,6 +368,23 @@ td.editing {
   font-weight: 500;
 }
 
+.sheet-tab.editing {
+  padding: 2px 4px;
+  overflow: visible;
+}
+
+.sheet-tab-input {
+  width: 140px;
+  box-sizing: border-box;
+  border: 2px solid var(--vscode-focusBorder);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family, inherit);
+  font-size: 12px;
+  padding: 1px 4px;
+  outline: none;
+}
+
 /* ── Context menu ─────────────────────────────────────────────────────────── */
 #context-menu {
   display: none;
@@ -398,6 +415,15 @@ td.editing {
   background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
   color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
 }
+
+.ctx-separator {
+  height: 1px;
+  background: var(--vscode-menu-border, var(--vscode-editorGroup-border));
+  margin: 4px 0;
+}
+
+#context-menu.ctx-mode-row .ctx-for-sheet { display: none; }
+#context-menu.ctx-mode-sheet .ctx-for-row { display: none; }
 
 /* Row number cursor hint for multi-select */
 td.row-num {

@@ -414,6 +414,81 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         break;
       }
 
+      case 'renameSheet': {
+        const { oldName, newName, currentData } = msg as {
+          oldName: string;
+          newName: string;
+          currentData?: { sheetName: string; columns: string[]; rows: string[][] };
+        };
+        if (currentData) {
+          doc.cache.set(currentData.sheetName, { columns: currentData.columns, rows: currentData.rows });
+        }
+        const idx = doc.sheets.indexOf(oldName);
+        if (idx < 0) break;
+        doc.sheets[idx] = newName;
+        const cached = doc.cache.get(oldName);
+        if (cached) {
+          doc.cache.delete(oldName);
+          doc.cache.set(newName, cached);
+        }
+        if (doc.activeSheet === oldName) doc.activeSheet = newName;
+        this._onChange.fire({ document: doc });
+        panel.webview.postMessage({
+          type: 'sheetRenamed',
+          oldName,
+          newName,
+          sheets: doc.sheets,
+          allSheetColumns: this.buildAllSheetColumns(doc),
+        });
+        break;
+      }
+
+      case 'deleteSheet': {
+        const { sheetName, currentData } = msg as {
+          sheetName: string;
+          currentData?: { sheetName: string; columns: string[]; rows: string[][] };
+        };
+        if (doc.sheets.length <= 1) {
+          panel.webview.postMessage({ type: 'error', message: '最後のシートは削除できません' });
+          break;
+        }
+        const answer = await vscode.window.showWarningMessage(
+          `シート「${sheetName}」を削除しますか？この操作は元に戻せません。`,
+          { modal: true },
+          '削除'
+        );
+        if (answer !== '削除') break;
+        if (currentData) {
+          doc.cache.set(currentData.sheetName, { columns: currentData.columns, rows: currentData.rows });
+        }
+        const delIdx = doc.sheets.indexOf(sheetName);
+        doc.sheets.splice(delIdx, 1);
+        doc.cache.delete(sheetName);
+        const newActive = doc.sheets[Math.min(delIdx, doc.sheets.length - 1)];
+        doc.activeSheet = newActive;
+        if (!doc.cache.has(newActive)) {
+          try {
+            doc.cache.set(newActive, await this.loadSheet(doc, newActive));
+          } catch (err: unknown) {
+            const m = err instanceof Error ? err.message : String(err);
+            panel.webview.postMessage({ type: 'error', message: m });
+            return;
+          }
+        }
+        this._onChange.fire({ document: doc });
+        const newData = doc.cache.get(newActive)!;
+        panel.webview.postMessage({
+          type: 'sheetDeleted',
+          deletedSheet: sheetName,
+          sheets: doc.sheets,
+          newActiveSheet: newActive,
+          columns: newData.columns,
+          rows: newData.rows,
+          allSheetColumns: this.buildAllSheetColumns(doc),
+        });
+        break;
+      }
+
       case 'importCsv': {
         const uris = await vscode.window.showOpenDialog({
           canSelectMany: true,
@@ -564,7 +639,10 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   </div>
 
   <div id="context-menu">
-    <div class="ctx-item" id="ctx-create-sheet">選択行でシートを作成...</div>
+    <div class="ctx-item ctx-for-row" id="ctx-create-sheet">選択行でシートを作成...</div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-rename-sheet">シート名を変更...</div>
+    <div class="ctx-separator ctx-for-sheet"></div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-delete-sheet">シートを削除</div>
   </div>
 
   <script src="${jsUri}"></script>

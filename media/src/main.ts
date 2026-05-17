@@ -1,6 +1,6 @@
-import { S, vscode, filterInput, statusBar, registerUpdateStatus, sendSaveData, markDirty } from './state';
+import { S, vscode, filterInput, statusBar, sheetTabsEl, registerUpdateStatus, sendSaveData, markDirty } from './state';
 import { render, renderSheetTabs, renderTable, renderBody, renderPagination,
-         updateStatus, registerRenderHandlers } from './render';
+         updateStatus, registerRenderHandlers, startSheetRename } from './render';
 import { selectCell, selectRow, selectColumn } from './selection';
 import { startEdit, startHeaderEdit, commitActiveEdit, undo, redo,
          snapshot, isEditing } from './edit/cell';
@@ -19,6 +19,18 @@ registerRenderHandlers({
   onColClick:     ci => selectColumn(ci),
   onColDblClick:  (th, ci) => startHeaderEdit(th, ci),
   onCommitEdit:   () => commitActiveEdit(),
+  onSheetRename:  (oldName, newName) => {
+    vscode.postMessage({
+      type: 'renameSheet',
+      oldName,
+      newName,
+      currentData: { sheetName: S.activeSheet, columns: [...S.columns], rows: S.rows.map(r => [...r]) },
+    });
+  },
+  onSheetTabContextMenu: (sheetName, x, y) => {
+    contextMenuSheetName = sheetName;
+    showContextMenu(x, y, 'ctx-mode-sheet');
+  },
 });
 
 // Button / filter event listeners
@@ -26,18 +38,38 @@ setupListeners();
 
 // ── Context menu ─────────────────────────────────────────────────────────────
 
-const contextMenu = document.getElementById('context-menu') as HTMLElement;
-const ctxCreateSheet = document.getElementById('ctx-create-sheet') as HTMLElement;
+const contextMenu     = document.getElementById('context-menu')      as HTMLElement;
+const ctxCreateSheet  = document.getElementById('ctx-create-sheet')  as HTMLElement;
+const ctxRenameSheet  = document.getElementById('ctx-rename-sheet')  as HTMLElement;
+const ctxDeleteSheet  = document.getElementById('ctx-delete-sheet')  as HTMLElement;
 
-document.addEventListener('click', () => contextMenu.classList.remove('visible'));
+let contextMenuSheetName = '';
+
+function hideContextMenu(): void {
+  contextMenu.classList.remove('visible', 'ctx-mode-row', 'ctx-mode-sheet');
+}
+
+function showContextMenu(x: number, y: number, mode: 'ctx-mode-row' | 'ctx-mode-sheet'): void {
+  contextMenu.classList.remove('visible', 'ctx-mode-row', 'ctx-mode-sheet');
+  contextMenu.style.left = x + 'px';
+  contextMenu.style.top  = y + 'px';
+  contextMenu.classList.add('visible', mode);
+  const rect = contextMenu.getBoundingClientRect();
+  if (rect.bottom > window.innerHeight) {
+    contextMenu.style.top = Math.max(0, y - rect.height) + 'px';
+  }
+  if (rect.right > window.innerWidth) {
+    contextMenu.style.left = Math.max(0, x - rect.width) + 'px';
+  }
+}
+
+document.addEventListener('click', hideContextMenu);
 document.addEventListener('contextmenu', e => {
-  contextMenu.classList.remove('visible');
+  hideContextMenu();
   const target = e.target as HTMLElement;
   if (target.closest('tr[data-row]') && S.selectedRows.size > 0) {
     e.preventDefault();
-    contextMenu.style.left = e.clientX + 'px';
-    contextMenu.style.top  = e.clientY + 'px';
-    contextMenu.classList.add('visible');
+    showContextMenu(e.clientX, e.clientY, 'ctx-mode-row');
   }
 });
 
@@ -46,9 +78,29 @@ document.getElementById('btn-import-csv')?.addEventListener('click', () => {
 });
 
 ctxCreateSheet.addEventListener('click', () => {
-  contextMenu.classList.remove('visible');
+  hideContextMenu();
   const rows = [...S.selectedRows].sort((a, b) => a - b).map(ri => [...(S.rows[ri] ?? [])]);
   vscode.postMessage({ type: 'createSheet', columns: [...S.columns], rows });
+});
+
+ctxRenameSheet.addEventListener('click', () => {
+  hideContextMenu();
+  const tabs = Array.from(sheetTabsEl.querySelectorAll('.sheet-tab')) as HTMLElement[];
+  const tab = tabs.find(t => t.dataset.sheet === contextMenuSheetName);
+  if (tab) startSheetRename(tab, contextMenuSheetName);
+});
+
+ctxDeleteSheet.addEventListener('click', () => {
+  hideContextMenu();
+  if (S.sheets.length <= 1) {
+    statusBar.textContent = '最後のシートは削除できません';
+    return;
+  }
+  vscode.postMessage({
+    type: 'deleteSheet',
+    sheetName: contextMenuSheetName,
+    currentData: { sheetName: S.activeSheet, columns: [...S.columns], rows: S.rows.map(r => [...r]) },
+  });
 });
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
@@ -153,6 +205,46 @@ window.addEventListener('message', event => {
       if (msg.allSheetColumns) S.allSheetColumns = msg.allSheetColumns as Record<string, string[]>;
       renderSheetTabs();
       break;
+
+    case 'sheetRenamed': {
+      const { oldName, newName, sheets, allSheetColumns } = msg as unknown as {
+        oldName: string; newName: string;
+        sheets: string[]; allSheetColumns: Record<string, string[]>;
+      };
+      S.sheets = sheets;
+      if (S.activeSheet === oldName) S.activeSheet = newName;
+      S.allSheetColumns = allSheetColumns;
+      renderSheetTabs();
+      updateStatus();
+      break;
+    }
+
+    case 'sheetDeleted': {
+      const { sheets, newActiveSheet, columns, rows, allSheetColumns } = msg as unknown as {
+        deletedSheet: string; sheets: string[];
+        newActiveSheet: string; columns: string[]; rows: string[][];
+        allSheetColumns: Record<string, string[]>;
+      };
+      S.sheets          = sheets;
+      S.activeSheet     = newActiveSheet;
+      S.columns         = columns;
+      S.rows            = rows;
+      S.allSheetColumns = allSheetColumns;
+      S.filterText      = '';
+      filterInput.value = '';
+      S.page            = 0;
+      S.selectedRow     = -1;
+      S.selectedCol     = -1;
+      S.selectedCells   = new Set();
+      S.anchorCell      = null;
+      S.selectedRows    = new Set();
+      S.anchorRow       = -1;
+      S.fkHighlightRows = new Set();
+      S.history         = [{ rows: rows.map(r => [...r]), columns: [...columns] }];
+      S.historyIndex    = 0;
+      render();
+      break;
+    }
 
     case 'requestSave':
       sendSaveData();
