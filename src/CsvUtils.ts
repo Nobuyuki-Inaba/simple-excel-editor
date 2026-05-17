@@ -70,6 +70,14 @@ export function serializeCsv(rows: string[][]): string {
   );
 }
 
+/**
+ * Parse the newline-separated output of the exceltocsv `list-sheets` command.
+ * Exported for unit testing without a VS Code dependency.
+ */
+export function parseSheetNames(stdout: string): string[] {
+  return stdout.split('\n').map(s => s.trim()).filter(Boolean);
+}
+
 /** Generate spreadsheet-style column names: A, B, …, Z, AA, AB, … */
 export function generateColumnNames(count: number): string[] {
   const names: string[] = [];
