@@ -359,6 +359,10 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       <button id="btn-add-col"    title="選択列の右に列を追加">＋ 列</button>
       <button id="btn-delete-col" title="選択列を削除">－ 列</button>
     </div>
+    <div id="filter-area">
+      <input type="text" id="filter-input" placeholder="検索..." autocomplete="off" spellcheck="false">
+      <button id="btn-filter-clear" title="検索クリア">✕</button>
+    </div>
     <div class="toolbar-right">
       <span class="hint">NULL: Alt+N ｜ 空文字: Alt+E</span>
       <span id="status-bar">読み込み中...</span>

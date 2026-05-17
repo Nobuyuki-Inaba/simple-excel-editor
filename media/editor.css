@@ -57,6 +57,43 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* ── Filter area ──────────────────────────────────────────────────────────── */
+#filter-area {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  max-width: 280px;
+}
+
+#filter-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-editorGroup-border));
+  border-radius: 2px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+#filter-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+#filter-input.active {
+  border-color: var(--vscode-focusBorder);
+}
+
+#btn-filter-clear {
+  padding: 1px 5px;
+  font-size: 11px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
 .hint {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
