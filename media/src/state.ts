@@ -23,6 +23,8 @@ export const S = {
   selectedCol:  -1,
   selectedCells: new Set<string>(),
   anchorCell:   null as { ri: number; ci: number } | null,
+  selectedRows: new Set<number>(),
+  anchorRow:    -1,
   history:      [] as HistoryEntry[],
   historyIndex: -1,
   dirty:        false,

@@ -17,10 +17,33 @@ export function addRow(): void {
 
 export function deleteRow(): void {
   commitActiveEdit();
-  if (S.selectedRow < 0 || S.selectedRow >= S.rows.length) return;
+
+  let rowsToDelete: number[];
+  if (S.selectedRows.size > 0) {
+    rowsToDelete = [...S.selectedRows].sort((a, b) => b - a);
+  } else if (S.selectedCells.size > 0) {
+    const coords = [...S.selectedCells].map(k => k.split(',').map(Number));
+    rowsToDelete = [...new Set(coords.map(([r]) => r))].sort((a, b) => b - a);
+  } else if (S.selectedRow >= 0) {
+    rowsToDelete = [S.selectedRow];
+  } else {
+    return;
+  }
+
+  if (rowsToDelete.some(r => r < 0 || r >= S.rows.length)) return;
+
   snapshot();
-  S.rows.splice(S.selectedRow, 1);
-  S.selectedRow = Math.min(S.selectedRow, S.rows.length - 1);
+  for (const ri of rowsToDelete) {
+    S.rows.splice(ri, 1);
+  }
+
+  const minRow = Math.min(...rowsToDelete);
+  S.selectedRow = S.rows.length === 0 ? -1 : Math.min(minRow, S.rows.length - 1);
+  S.selectedRows = new Set();
+  S.anchorRow = -1;
+  S.selectedCells = new Set();
+  S.anchorCell = null;
+
   markDirty();
   renderBody();
   renderPagination();

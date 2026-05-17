@@ -1,13 +1,13 @@
 import { S, headerRow, tableBody, sheetTabsEl, pageInfo, rowCount, statusBar,
          btnFirst, btnPrev, btnNext, btnLast, requestSwitchSheet } from './state';
 import { isNullValue, isEmptyValue, isDateColumn, isDateLike, isValidIsoDate,
-         colLabel, calculateColumnStats, getDisplayRows, totalPages } from './data/utils';
+         colLabel, calculateColumnStats, getDisplayRows } from './data/utils';
 
 // ── Registered callbacks (breaks circular deps with edit/cell and selection) ──
 
 type CellClickHandler = (ri: number, ci: number, shift: boolean, ctrl: boolean) => void;
 type CellDblClickHandler = (td: HTMLElement, ri: number, ci: number) => void;
-type RowClickHandler = (ri: number) => void;
+type RowClickHandler = (ri: number, shift: boolean, ctrl: boolean) => void;
 type ColClickHandler = (ci: number) => void;
 type ColDblClickHandler = (th: HTMLElement, ci: number) => void;
 type CommitEditHandler = () => void;
@@ -95,12 +95,13 @@ export function renderBody(): void {
   slice.forEach(({ data: rowData, ri }) => {
     const tr = document.createElement('tr');
     tr.dataset.row = String(ri);
-    if (ri === S.selectedRow) tr.classList.add('selected-row');
+    const rowHighlighted = S.selectedRows.size > 0 ? S.selectedRows.has(ri) : ri === S.selectedRow;
+    if (rowHighlighted) tr.classList.add('selected-row');
 
     const tdNum = document.createElement('td');
     tdNum.className = 'row-num';
     tdNum.textContent = String(ri + 1);
-    tdNum.addEventListener('click', () => onRowClick(ri));
+    tdNum.addEventListener('click', e => onRowClick(ri, e.shiftKey, e.ctrlKey || e.metaKey));
     tr.appendChild(tdNum);
 
     S.columns.forEach((_, ci) => {
@@ -174,7 +175,9 @@ export function renderPagination(): void {
 
 export function updateStatus(): void {
   const dirty = S.dirty ? ' ●' : '';
-  if (S.selectedCells.size > 1) {
+  if (S.selectedRows.size > 1) {
+    statusBar.textContent = `${S.selectedRows.size}行 選択中` + dirty;
+  } else if (S.selectedCells.size > 1) {
     const coords = [...S.selectedCells].map(k => k.split(',').map(Number));
     const rowSet = new Set(coords.map(([r]) => r));
     const colSet = new Set(coords.map(([, c]) => c));
