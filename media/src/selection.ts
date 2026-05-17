@@ -1,5 +1,6 @@
 import { S, headerRow, tableBody } from './state';
 import { applyDuplicateHighlight, updateStatus } from './render';
+import { updateFkButtons, clearFkHighlight } from './fkNav';
 
 export function buildRangeSet(r1: number, c1: number, r2: number, c2: number): Set<string> {
   const cells = new Set<string>();
@@ -36,8 +37,10 @@ export function selectCell(ri: number, ci: number, shiftKey = false, ctrlKey = f
     S.selectedRow = ri;
     S.selectedCol = ci;
   }
+  clearFkHighlight();
   refreshSelection();
   applyDuplicateHighlight(S.selectedCol);
+  updateFkButtons(S.selectedCol, S.selectedRow);
   updateStatus();
 }
 
@@ -59,8 +62,10 @@ export function selectRow(ri: number, shift = false, ctrl = false): void {
   S.selectedCol = -1;
   S.selectedCells = new Set();
   S.anchorCell = null;
+  clearFkHighlight();
   refreshSelection();
   applyDuplicateHighlight(-1);
+  updateFkButtons(-1, -1);
   updateStatus();
 }
 
@@ -76,7 +81,9 @@ export function selectColumn(ci: number): void {
   );
   const th = headerRow.querySelector(`th[data-col="${ci}"]`);
   if (th) th.classList.add('selected-col-header');
+  clearFkHighlight();
   applyDuplicateHighlight(ci);
+  updateFkButtons(-1, -1);
   updateStatus();
 }
 

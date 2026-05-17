@@ -28,6 +28,10 @@ export const S = {
   history:      [] as HistoryEntry[],
   historyIndex: -1,
   dirty:        false,
+  // FK navigation
+  allSheetColumns:    {} as Record<string, string[]>,
+  pendingFkHighlight: null as { columnName: string; value: string } | null,
+  fkHighlightRows:    new Set<number>(),
 };
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
