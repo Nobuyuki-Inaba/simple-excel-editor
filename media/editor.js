@@ -254,9 +254,26 @@
     btnLast.disabled  = S.page >= total - 1;
   }
 
+  function calculateColumnStats(ci) {
+    const values = S.rows.map(row => row[ci] ?? '');
+    const total = values.length;
+    const nullCount = values.filter(v => isNullValue(v)).length;
+    const emptyCount = values.filter(v => !isNullValue(v) && (v === '' || isEmptyValue(v))).length;
+    const uniqueValues = new Set(values.filter(v => !isNullValue(v)));
+    return { total, nullCount, emptyCount, uniqueCount: uniqueValues.size };
+  }
+
   function updateStatus() {
     const dirty = S.dirty ? ' ●' : '';
-    statusBar.textContent = S.activeSheet + dirty;
+    if (S.selectedCol >= 0) {
+      const stats = calculateColumnStats(S.selectedCol);
+      const colName = S.columns[S.selectedCol] || colLabel(S.selectedCol);
+      let text = `${colName}: ${stats.total}行 | NULL: ${stats.nullCount}件 | ユニーク: ${stats.uniqueCount}件`;
+      if (stats.emptyCount > 0) text += ` | 空: ${stats.emptyCount}件`;
+      statusBar.textContent = text + dirty;
+    } else {
+      statusBar.textContent = S.activeSheet + dirty;
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -337,12 +354,14 @@
     S.selectedRow = ri;
     S.selectedCol = ci;
     refreshSelection();
+    updateStatus();
   }
 
   function selectRow(ri) {
     S.selectedRow = ri;
     S.selectedCol = -1;
     refreshSelection();
+    updateStatus();
   }
 
   function selectColumn(ci) {
@@ -354,6 +373,7 @@
     );
     const th = headerRow.querySelector(`th[data-col="${ci}"]`);
     if (th) th.classList.add('selected-col-header');
+    updateStatus();
   }
 
   function refreshSelection() {
