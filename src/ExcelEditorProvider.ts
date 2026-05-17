@@ -312,7 +312,8 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   private async sendInit(doc: ExcelDocument, panel: vscode.WebviewPanel): Promise<void> {
     const cfg = vscode.workspace.getConfiguration('simpleExcelEditor');
     const pageSize = cfg.get<number>('pageSize', 200);
-    const nullMarkers = cfg.get<string[]>('nullMarkers', ['\\N']);
+    const nullMarkers = cfg.get<string[]>('nullMarkers', ['[null]']);
+    const emptyMarkers = cfg.get<string[]>('emptyMarkers', ['[empty]']);
     const data = doc.cache.get(doc.activeSheet) ?? { columns: [], rows: [] };
 
     panel.webview.postMessage({
@@ -323,6 +324,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       rows: data.rows,
       pageSize,
       nullMarkers,
+      emptyMarkers,
     });
   }
 
@@ -358,7 +360,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       <button id="btn-delete-col" title="選択列を削除">－ 列</button>
     </div>
     <div class="toolbar-right">
-      <span class="hint">NULL: Alt+N</span>
+      <span class="hint">NULL: Alt+N ｜ 空文字: Alt+E</span>
       <span id="status-bar">読み込み中...</span>
     </div>
   </div>

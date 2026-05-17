@@ -50,8 +50,14 @@
         "simpleExcelEditor.nullMarkers": {
           "type": "array",
           "items": { "type": "string" },
-          "default": ["\\N"],
-          "description": "NULLとして扱う文字列。空文字列とは区別されます。"
+          "default": ["[null]"],
+          "description": "NULLとして扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [null] を使用します。"
+        },
+        "simpleExcelEditor.emptyMarkers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["[empty]"],
+          "description": "空文字列として扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [empty] を使用します。"
         },
         "simpleExcelEditor.encoding": {
           "type": "string",

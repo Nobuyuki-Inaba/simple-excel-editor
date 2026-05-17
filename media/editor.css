@@ -179,6 +179,18 @@ td.null-cell .null-label {
   pointer-events: none;
 }
 
+/* EMPTY cells */
+td.empty-cell {
+  background: color-mix(in srgb, var(--vscode-charts-blue, #4fc3f7) 10%, transparent) !important;
+}
+
+td.empty-cell .empty-label {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  font-size: 11px;
+  pointer-events: none;
+}
+
 /* Editing */
 td.editing {
   padding: 0;
