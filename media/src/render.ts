@@ -1,5 +1,6 @@
 import { S, headerRow, tableBody, sheetTabsEl, pageInfo, rowCount, statusBar,
          btnFirst, btnPrev, btnNext, btnLast, requestSwitchSheet } from './state';
+
 import { isNullValue, isEmptyValue, isDateColumn, isDateLike, isValidIsoDate,
          colLabel, calculateColumnStats, getDisplayRows } from './data/utils';
 
@@ -11,28 +12,36 @@ type RowClickHandler = (ri: number, shift: boolean, ctrl: boolean) => void;
 type ColClickHandler = (ci: number) => void;
 type ColDblClickHandler = (th: HTMLElement, ci: number) => void;
 type CommitEditHandler = () => void;
+type SheetRenameHandler = (oldName: string, newName: string) => void;
+type SheetTabContextMenuHandler = (sheetName: string, x: number, y: number) => void;
 
-let onCellClick:     CellClickHandler    = () => {};
-let onCellDblClick:  CellDblClickHandler = () => {};
-let onRowClick:      RowClickHandler     = () => {};
-let onColClick:      ColClickHandler     = () => {};
-let onColDblClick:   ColDblClickHandler  = () => {};
-let onCommitEdit:    CommitEditHandler   = () => {};
+let onCellClick:            CellClickHandler           = () => {};
+let onCellDblClick:         CellDblClickHandler        = () => {};
+let onRowClick:             RowClickHandler            = () => {};
+let onColClick:             ColClickHandler            = () => {};
+let onColDblClick:          ColDblClickHandler         = () => {};
+let onCommitEdit:           CommitEditHandler          = () => {};
+let onSheetRename:          SheetRenameHandler         = () => {};
+let onSheetTabContextMenu:  SheetTabContextMenuHandler = () => {};
 
 export function registerRenderHandlers(handlers: {
-  onCellClick:    CellClickHandler;
-  onCellDblClick: CellDblClickHandler;
-  onRowClick:     RowClickHandler;
-  onColClick:     ColClickHandler;
-  onColDblClick:  ColDblClickHandler;
-  onCommitEdit:   CommitEditHandler;
+  onCellClick:           CellClickHandler;
+  onCellDblClick:        CellDblClickHandler;
+  onRowClick:            RowClickHandler;
+  onColClick:            ColClickHandler;
+  onColDblClick:         ColDblClickHandler;
+  onCommitEdit:          CommitEditHandler;
+  onSheetRename:         SheetRenameHandler;
+  onSheetTabContextMenu: SheetTabContextMenuHandler;
 }): void {
-  onCellClick    = handlers.onCellClick;
-  onCellDblClick = handlers.onCellDblClick;
-  onRowClick     = handlers.onRowClick;
-  onColClick     = handlers.onColClick;
-  onColDblClick  = handlers.onColDblClick;
-  onCommitEdit   = handlers.onCommitEdit;
+  onCellClick           = handlers.onCellClick;
+  onCellDblClick        = handlers.onCellDblClick;
+  onRowClick            = handlers.onRowClick;
+  onColClick            = handlers.onColClick;
+  onColDblClick         = handlers.onColDblClick;
+  onCommitEdit          = handlers.onCommitEdit;
+  onSheetRename         = handlers.onSheetRename;
+  onSheetTabContextMenu = handlers.onSheetTabContextMenu;
 }
 
 // ── Render ──────────────────────────────────────────────────────────────────
@@ -51,13 +60,65 @@ export function renderSheetTabs(): void {
     tab.className = 'sheet-tab' + (name === S.activeSheet ? ' active' : '');
     tab.textContent = name;
     tab.title = name;
+    tab.dataset.sheet = name;
     tab.addEventListener('click', () => {
       if (name !== S.activeSheet) {
         onCommitEdit();
         requestSwitchSheet(name);
       }
     });
+    tab.addEventListener('dblclick', e => {
+      e.preventDefault();
+      startSheetRename(tab, name);
+    });
+    tab.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      onSheetTabContextMenu(name, e.clientX, e.clientY);
+    });
     sheetTabsEl.appendChild(tab);
+  });
+}
+
+export function startSheetRename(tab: HTMLElement, currentName: string): void {
+  if (tab.classList.contains('editing')) return;
+  tab.classList.add('editing');
+  tab.textContent = '';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'sheet-tab-input';
+  input.value = currentName;
+  input.addEventListener('click', e => e.stopPropagation());
+  tab.appendChild(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+
+  const commit = () => {
+    if (committed) return;
+    committed = true;
+    const newName = input.value.trim();
+    tab.classList.remove('editing');
+    tab.textContent = currentName;
+    tab.title = currentName;
+    if (!newName || newName === currentName || S.sheets.includes(newName)) return;
+    onSheetRename(currentName, newName);
+  };
+
+  const cancel = () => {
+    if (committed) return;
+    committed = true;
+    tab.classList.remove('editing');
+    tab.textContent = currentName;
+    tab.title = currentName;
+  };
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); input.value = currentName; cancel(); }
   });
 }
 
