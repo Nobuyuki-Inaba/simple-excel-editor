@@ -1,6 +1,7 @@
 # Simple Excel Editor
 
 VSCode 拡張機能 — Excel ファイル (`.xlsx` / `.xls` / `.xlsm`) をエディタ内で直接スプレッドシート形式で編集できます。
+Java の DBRider / DBUnit テストデータ作成・編集を主なユースケースとして設計されています。
 
 ![エディタのプレビュー](docs/screenshots/editor-preview.png)
 
@@ -11,16 +12,27 @@ VSCode 拡張機能 — Excel ファイル (`.xlsx` / `.xls` / `.xlsm`) をエ�
 | 機能 | 詳細 |
 |------|------|
 | 表形式編集 | セルをダブルクリックして直接編集 |
+| ヘッダ名編集 | ヘッダセルをダブルクリックして列名を変更 |
 | マルチシート | 画面下部のタブでシートを切り替え |
-| NULL値対応 | 空文字列とNULLを区別して表示・編集 |
-| ページネーション | 大量行を一定件数ずつ表示 |
+| NULL / 空文字区別 | NULL（赤背景）と空文字（青緑背景）を色で区別して表示・編集 |
+| 検索・フィルタ | ツールバーの検索ボックスで行をリアルタイム絞り込み |
+| 列統計情報 | 列を選択するとステータスバーに件数・NULL数・空文字数・ユニーク数を表示 |
+| 日付バリデーション | 日付系カラムに ISO 形式以外の値が入っていると警告表示（薄赤背景） |
 | 行・列の追加/削除 | ツールバーボタンで操作 |
-| 保存 | Ctrl+S で Excel ファイルに書き戻し |
+| 行複製 | 選択行を直下に複製（`Ctrl+D`） |
+| ページネーション | 大量行を一定件数ずつ表示（フィルタ時は一致件数を表示） |
+| 横スクロール・行番号固定 | 列数が多い場合も行番号列（#）が左に固定され、横スクロール可能 |
+| ソート | 列ヘッダクリックで昇順/降順ソート |
+| 保存 | `Ctrl+S` で Excel ファイルに書き戻し |
+
+---
 
 ## 必要条件
 
 - Java 21 以上
 - [exceltocsv](https://github.com/Nobuyuki-Inaba/exceltocsv) の fat JAR
+
+---
 
 ## セットアップ
 
@@ -45,13 +57,16 @@ npm install
 
 VSCode でこのフォルダを開き、**F5** を押すと拡張機能開発ホストが起動します。
 
+---
+
 ## 設定項目
 
 | 設定 | デフォルト | 説明 |
 |------|-----------|------|
 | `simpleExcelEditor.javaPath` | `""` | Java 実行ファイルパス（空の場合は自動検出） |
 | `simpleExcelEditor.jarPath` | `""` | exceltocsv JAR パス（空の場合は `lib/exceltocsv.jar`） |
-| `simpleExcelEditor.nullMarkers` | `["\\N"]` | NULL として扱う文字列のリスト |
+| `simpleExcelEditor.nullMarkers` | `["[null]"]` | NULL として扱う文字列のリスト |
+| `simpleExcelEditor.emptyMarkers` | `["[empty]"]` | 空文字として扱う文字列のリスト |
 | `simpleExcelEditor.pageSize` | `200` | 1ページに表示する行数 |
 | `simpleExcelEditor.hasHeader` | `true` | 先頭行をヘッダとして扱うか |
 | `simpleExcelEditor.encoding` | `"UTF-8"` | CSV 変換時の文字エンコーディング |
@@ -64,13 +79,55 @@ VSCode でこのフォルダを開き、**F5** を押すと拡張機能開発ホ
 4. `JAVA_HOME` 環境変数
 5. `java`（PATH フォールバック）
 
-## NULL 値の扱い
+---
+
+## NULL 値・空文字の扱い
 
 このエディタはソフトウェア開発での利用を想定しており、**空文字列と NULL を明確に区別**します。
+DBRider / DBUnit の `ReplacementDataSet` で使われる `[null]` / `[empty]` 記法にデフォルト対応しています。
 
-- **空セル** → CSV で空文字列 `""`
-- **NULL セル** → CSV で `\N`（デフォルト、設定で変更可能）
-- **入力方法** → セルを編集中に `Alt+N` で NULL マーカーを挿入
+| 種別 | 表示 | CSV 出力値（デフォルト） | 挿入ショートカット |
+|------|------|------------------------|------------------|
+| NULL | 赤背景 + `NULL` ラベル | `[null]` | `Alt+N` |
+| 空文字 | 青緑背景 + `EMPTY` ラベル | `[empty]` | `Alt+E` |
+| 通常の空セル | 空白 | `""` | — |
+
+`nullMarkers` / `emptyMarkers` 設定でマーカー文字列を変更できます（複数指定可）。
+
+---
+
+## キーボードショートカット
+
+| キー | 操作 |
+|------|------|
+| `Alt+N` | 選択セルに NULL マーカーを挿入 |
+| `Alt+E` | 選択セルに 空文字マーカーを挿入 |
+| `Ctrl+D` | 選択行を直下に複製 |
+| `Ctrl+S` | 保存 |
+| `Escape` | 編集キャンセル / 選択解除 |
+| `Tab` / `Shift+Tab` | 編集中に次/前のセルへ移動 |
+| `Enter` | 編集確定 |
+
+---
+
+## 日付バリデーション
+
+列名に `date`、`day`、`_on`、`_at` を含むカラムを自動的に日付列と見なし、
+ISO 形式（`yyyy-MM-dd` または `yyyy-MM-dd HH:mm:ss`）以外の値が入力されている場合は
+セルを薄赤背景で警告表示します。
+
+---
+
+## 列統計情報
+
+列ヘッダ（または列内のセル）をクリックして列を選択すると、
+ステータスバーに以下の統計が表示されます。
+
+```
+列名: 10行 | NULL: 2件 | 空文字: 1件 | ユニーク: 7件
+```
+
+---
 
 ## 構成
 
@@ -81,13 +138,26 @@ simple-excel-editor/
 │   ├── ExcelEditorProvider.ts  # カスタムエディタ本体
 │   ├── JavaRunner.ts           # exceltocsv JAR 実行
 │   ├── JavaPathDetector.ts     # Java パス自動検出
-│   └── CsvUtils.ts             # CSV パース/シリアライズ
+│   ├── CsvUtils.ts             # CSV パース/シリアライズ
+│   └── test/
+│       └── CsvUtils.test.ts    # ユニットテスト（Mocha + ts-node）
 ├── media/
 │   ├── editor.js               # Webview UI（Vanilla JS、外部ライブラリなし）
 │   └── editor.css              # スタイル（VS Code テーマ変数対応）
-└── lib/
-    └── exceltocsv.jar          # 変換エンジン（要配置）
+├── lib/
+│   └── exceltocsv.jar          # 変換エンジン（要配置）
+├── tsconfig.json               # 共通 TypeScript 設定
+├── tsconfig.build.json         # ビルド用（テストコードを除外）
+└── tsconfig.test.json          # テスト用（Mocha 型定義を追加）
 ```
+
+### テストの実行
+
+```bash
+npm test
+```
+
+---
 
 ## ライセンス
 
