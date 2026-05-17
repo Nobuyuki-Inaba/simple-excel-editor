@@ -201,6 +201,8 @@
 
       tableBody.appendChild(tr);
     });
+
+    applyDuplicateHighlight(S.selectedCol);
   }
 
   function makeCell(ri, ci, value) {
@@ -259,8 +261,25 @@
     const total = values.length;
     const nullCount = values.filter(v => isNullValue(v)).length;
     const emptyCount = values.filter(v => !isNullValue(v) && (v === '' || isEmptyValue(v))).length;
-    const uniqueValues = new Set(values.filter(v => !isNullValue(v)));
-    return { total, nullCount, emptyCount, uniqueCount: uniqueValues.size };
+    const nonNullValues = values.filter(v => !isNullValue(v));
+    const uniqueValues = new Set(nonNullValues);
+    const freq = new Map();
+    for (const v of nonNullValues) freq.set(v, (freq.get(v) ?? 0) + 1);
+    const dupValues = new Set([...freq.entries()].filter(([, c]) => c > 1).map(([v]) => v));
+    const dupCount = nonNullValues.filter(v => dupValues.has(v)).length;
+    return { total, nullCount, emptyCount, uniqueCount: uniqueValues.size, dupValues, dupCount };
+  }
+
+  function applyDuplicateHighlight(ci) {
+    document.querySelectorAll('td.duplicate-cell').forEach(el => el.classList.remove('duplicate-cell'));
+    if (ci < 0) return;
+    const { dupValues } = calculateColumnStats(ci);
+    if (dupValues.size === 0) return;
+    tableBody.querySelectorAll(`td[data-col="${ci}"]`).forEach(td => {
+      const ri = Number(td.dataset.row);
+      const value = S.rows[ri]?.[ci] ?? '';
+      if (dupValues.has(value)) td.classList.add('duplicate-cell');
+    });
   }
 
   function updateStatus() {
@@ -270,6 +289,7 @@
       const colName = S.columns[S.selectedCol] || colLabel(S.selectedCol);
       let text = `${colName}: ${stats.total}行 | NULL: ${stats.nullCount}件 | ユニーク: ${stats.uniqueCount}件`;
       if (stats.emptyCount > 0) text += ` | 空: ${stats.emptyCount}件`;
+      if (stats.dupCount > 0) text += ` | 重複: ${stats.dupCount}件`;
       statusBar.textContent = text + dirty;
     } else {
       statusBar.textContent = S.activeSheet + dirty;
@@ -354,6 +374,7 @@
     S.selectedRow = ri;
     S.selectedCol = ci;
     refreshSelection();
+    applyDuplicateHighlight(ci);
     updateStatus();
   }
 
@@ -361,6 +382,7 @@
     S.selectedRow = ri;
     S.selectedCol = -1;
     refreshSelection();
+    applyDuplicateHighlight(-1);
     updateStatus();
   }
 
@@ -373,6 +395,7 @@
     );
     const th = headerRow.querySelector(`th[data-col="${ci}"]`);
     if (th) th.classList.add('selected-col-header');
+    applyDuplicateHighlight(ci);
     updateStatus();
   }
 
