@@ -72,15 +72,16 @@ export class JavaRunner {
     ]);
   }
 
-  async csvToExcel(csvPath: string, excelPath: string, sheetName: string): Promise<void> {
+  async csvToExcel(csvPath: string, excelPath: string, sheetName: string, update = true): Promise<void> {
     const enc = vscode.workspace
       .getConfiguration('simpleExcelEditor')
       .get<string>('encoding', 'UTF-8');
-    await this.run([
+    const args = [
       'csv2excel', csvPath, excelPath,
       `--sheet=${sheetName}`,
-      '--update',
       `--encoding=${enc}`,
-    ]);
+    ];
+    if (update) args.push('--update');
+    await this.run(args);
   }
 }

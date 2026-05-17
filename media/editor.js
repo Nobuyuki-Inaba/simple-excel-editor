@@ -846,6 +846,9 @@
       contextMenu.classList.add("visible");
     }
   });
+  document.getElementById("btn-import-csv")?.addEventListener("click", () => {
+    vscode.postMessage({ type: "importCsv" });
+  });
   ctxCreateSheet.addEventListener("click", () => {
     contextMenu.classList.remove("visible");
     const rows = [...S.selectedRows].sort((a, b) => a - b).map((ri) => [...S.rows[ri] ?? []]);
@@ -940,6 +943,7 @@
         break;
       case "sheetAdded":
         S.sheets = msg.sheets;
+        if (msg.allSheetColumns) S.allSheetColumns = msg.allSheetColumns;
         renderSheetTabs();
         break;
       case "requestSave":

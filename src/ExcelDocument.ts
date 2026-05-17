@@ -9,16 +9,20 @@ export interface SheetData {
   rows: string[][];
 }
 
+export type DocumentKind = 'excel' | 'csv' | 'tableOrdering';
+
 export class ExcelDocument implements vscode.CustomDocument {
   readonly uri: vscode.Uri;
   readonly tmpDir: string;
+  readonly kind: DocumentKind;
 
   sheets: string[] = [];
   activeSheet = '';
   cache = new Map<string, SheetData>();
 
-  constructor(uri: vscode.Uri) {
+  constructor(uri: vscode.Uri, kind: DocumentKind = 'excel') {
     this.uri = uri;
+    this.kind = kind;
     this.tmpDir = path.join(
       os.tmpdir(),
       'simple-excel-editor',

@@ -41,6 +41,10 @@ document.addEventListener('contextmenu', e => {
   }
 });
 
+document.getElementById('btn-import-csv')?.addEventListener('click', () => {
+  vscode.postMessage({ type: 'importCsv' });
+});
+
 ctxCreateSheet.addEventListener('click', () => {
   contextMenu.classList.remove('visible');
   const rows = [...S.selectedRows].sort((a, b) => a - b).map(ri => [...(S.rows[ri] ?? [])]);
@@ -146,6 +150,7 @@ window.addEventListener('message', event => {
 
     case 'sheetAdded':
       S.sheets = msg.sheets as string[];
+      if (msg.allSheetColumns) S.allSheetColumns = msg.allSheetColumns as Record<string, string[]>;
       renderSheetTabs();
       break;
 
