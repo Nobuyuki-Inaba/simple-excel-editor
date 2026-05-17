@@ -14,7 +14,7 @@ registerUpdateStatus(updateStatus);
 registerRenderHandlers({
   onCellClick:    (ri, ci, shift, ctrl) => selectCell(ri, ci, shift, ctrl),
   onCellDblClick: (td, ri, ci) => startEdit(td, ri, ci),
-  onRowClick:     ri => selectRow(ri),
+  onRowClick:     (ri, shift, ctrl) => selectRow(ri, shift, ctrl),
   onColClick:     ci => selectColumn(ci),
   onColDblClick:  (th, ci) => startHeaderEdit(th, ci),
   onCommitEdit:   () => commitActiveEdit(),
@@ -23,7 +23,31 @@ registerRenderHandlers({
 // Button / filter event listeners
 setupListeners();
 
-// Keyboard shortcuts
+// ── Context menu ─────────────────────────────────────────────────────────────
+
+const contextMenu = document.getElementById('context-menu') as HTMLElement;
+const ctxCreateSheet = document.getElementById('ctx-create-sheet') as HTMLElement;
+
+document.addEventListener('click', () => contextMenu.classList.remove('visible'));
+document.addEventListener('contextmenu', e => {
+  contextMenu.classList.remove('visible');
+  const target = e.target as HTMLElement;
+  if (target.closest('tr[data-row]') && S.selectedRows.size > 0) {
+    e.preventDefault();
+    contextMenu.style.left = e.clientX + 'px';
+    contextMenu.style.top  = e.clientY + 'px';
+    contextMenu.classList.add('visible');
+  }
+});
+
+ctxCreateSheet.addEventListener('click', () => {
+  contextMenu.classList.remove('visible');
+  const rows = [...S.selectedRows].sort((a, b) => a - b).map(ri => [...(S.rows[ri] ?? [])]);
+  vscode.postMessage({ type: 'createSheet', columns: [...S.columns], rows });
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();
@@ -59,9 +83,13 @@ document.addEventListener('keydown', e => {
     markDirty();
     renderBody();
   }
+  if (e.key === 'Escape') {
+    contextMenu.classList.remove('visible');
+  }
 });
 
-// Message handling
+// ── Message handling ──────────────────────────────────────────────────────────
+
 window.addEventListener('message', event => {
   const msg = event.data as { type: string; [key: string]: unknown };
   switch (msg.type) {
@@ -81,6 +109,8 @@ window.addEventListener('message', event => {
       S.selectedCol   = -1;
       S.selectedCells = new Set();
       S.anchorCell    = null;
+      S.selectedRows  = new Set();
+      S.anchorRow     = -1;
       S.history       = [{ rows: (msg.rows as string[][]).map(r => [...r]), columns: [...(msg.columns as string[])] }];
       S.historyIndex  = 0;
       render();
@@ -97,12 +127,19 @@ window.addEventListener('message', event => {
       S.selectedCol   = -1;
       S.selectedCells = new Set();
       S.anchorCell    = null;
+      S.selectedRows  = new Set();
+      S.anchorRow     = -1;
       S.history       = [{ rows: (msg.rows as string[][]).map(r => [...r]), columns: [...(msg.columns as string[])] }];
       S.historyIndex  = 0;
       renderSheetTabs();
       renderTable();
       renderPagination();
       updateStatus();
+      break;
+
+    case 'sheetAdded':
+      S.sheets = msg.sheets as string[];
+      renderSheetTabs();
       break;
 
     case 'requestSave':
