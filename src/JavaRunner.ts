@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { detectJavaPath } from './JavaPathDetector';
+import { parseSheetNames } from './CsvUtils';
 
 const execAsync = promisify(execFile);
 
@@ -57,10 +58,7 @@ export class JavaRunner {
 
   async listSheets(excelPath: string): Promise<string[]> {
     const out = await this.run(['list-sheets', excelPath]);
-    return out
-      .split('\n')
-      .map(s => s.trim())
-      .filter(Boolean);
+    return parseSheetNames(out);
   }
 
   async excelToCsv(excelPath: string, csvPath: string, sheetName: string): Promise<void> {

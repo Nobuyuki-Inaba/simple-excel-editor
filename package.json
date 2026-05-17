@@ -11,8 +11,16 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
-  "keywords": ["excel", "xlsx", "csv", "spreadsheet", "editor"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "excel",
+    "xlsx",
+    "csv",
+    "spreadsheet",
+    "editor"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -21,9 +29,15 @@
         "viewType": "simpleExcelEditor.editor",
         "displayName": "Simple Excel Editor",
         "selector": [
-          { "filenamePattern": "*.xlsx" },
-          { "filenamePattern": "*.xls" },
-          { "filenamePattern": "*.xlsm" }
+          {
+            "filenamePattern": "*.xlsx"
+          },
+          {
+            "filenamePattern": "*.xls"
+          },
+          {
+            "filenamePattern": "*.xlsm"
+          }
         ],
         "priority": "default"
       }
@@ -49,20 +63,32 @@
         },
         "simpleExcelEditor.nullMarkers": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["[null]"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "[null]"
+          ],
           "description": "NULLとして扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [null] を使用します。"
         },
         "simpleExcelEditor.emptyMarkers": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["[empty]"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "[empty]"
+          ],
           "description": "空文字列として扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [empty] を使用します。"
         },
         "simpleExcelEditor.encoding": {
           "type": "string",
-          "enum": ["UTF-8"],
-          "enumDescriptions": ["UTF-8 (BOMなし)"],
+          "enum": [
+            "UTF-8"
+          ],
+          "enumDescriptions": [
+            "UTF-8 (BOMなし)"
+          ],
           "default": "UTF-8",
           "description": "CSV変換時の文字エンコーディング。"
         },
@@ -82,14 +108,18 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "tsc -p tsconfig.build.json",
+    "watch": "tsc -watch -p tsconfig.build.json",
+    "test": "mocha",
     "package": "vsce package --no-dependencies"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^2.24.0",
-    "typescript": "^5.3.0"
+    "mocha": "^10.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
   }
 }
