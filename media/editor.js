@@ -18,6 +18,10 @@
     filterText: '',
     selectedRow: -1,
     selectedCol: -1,
+    selectedCells: /** @type {Set<string>} */ (new Set()),  // "ri,ci" keys
+    anchorCell: /** @type {{ri: number, ci: number}|null} */ (null),
+    history: /** @type {Array<{rows: string[][], columns: string[]}>} */ ([]),
+    historyIndex: -1,
     dirty: false,
   };
 
@@ -59,9 +63,13 @@
         S.filterText    = '';
         filterInput.value = '';
         S.page          = 0;
-        S.dirty       = false;
-        S.selectedRow = -1;
-        S.selectedCol = -1;
+        S.dirty         = false;
+        S.selectedRow   = -1;
+        S.selectedCol   = -1;
+        S.selectedCells = new Set();
+        S.anchorCell    = null;
+        S.history       = [{ rows: msg.rows.map(r => [...r]), columns: [...msg.columns] }];
+        S.historyIndex  = 0;
         render();
         break;
 
@@ -69,11 +77,15 @@
         S.activeSheet = msg.sheetName;
         S.columns     = msg.columns;
         S.rows        = msg.rows;
-        S.filterText  = '';
+        S.filterText    = '';
         filterInput.value = '';
-        S.page        = 0;
-        S.selectedRow = -1;
-        S.selectedCol = -1;
+        S.page          = 0;
+        S.selectedRow   = -1;
+        S.selectedCol   = -1;
+        S.selectedCells = new Set();
+        S.anchorCell    = null;
+        S.history       = [{ rows: msg.rows.map(r => [...r]), columns: [...msg.columns] }];
+        S.historyIndex  = 0;
         renderSheetTabs();
         renderTable();
         renderPagination();
@@ -212,7 +224,15 @@
 
     setCellDisplay(td, value, S.columns[ci] ?? '');
 
-    td.addEventListener('click', () => selectCell(ri, ci));
+    // Re-apply selection state when cells are re-rendered (e.g. page nav)
+    const key = `${ri},${ci}`;
+    if (S.selectedCells.size > 1 && S.selectedCells.has(key)) {
+      td.classList.add('range-selected');
+    } else if (S.selectedCells.size === 1 && S.selectedCells.has(key)) {
+      td.classList.add('selected-cell');
+    }
+
+    td.addEventListener('click', e => selectCell(ri, ci, e.shiftKey, e.ctrlKey || e.metaKey));
     td.addEventListener('dblclick', () => startEdit(td, ri, ci));
     return td;
   }
@@ -284,7 +304,12 @@
 
   function updateStatus() {
     const dirty = S.dirty ? ' ●' : '';
-    if (S.selectedCol >= 0) {
+    if (S.selectedCells.size > 1) {
+      const coords = [...S.selectedCells].map(k => k.split(',').map(Number));
+      const rowSet = new Set(coords.map(([r]) => r));
+      const colSet = new Set(coords.map(([, c]) => c));
+      statusBar.textContent = `${rowSet.size}行 × ${colSet.size}列 選択中` + dirty;
+    } else if (S.selectedCol >= 0) {
       const stats = calculateColumnStats(S.selectedCol);
       const colName = S.columns[S.selectedCol] || colLabel(S.selectedCol);
       let text = `${colName}: ${stats.total}行 | NULL: ${stats.nullCount}件 | ユニーク: ${stats.uniqueCount}件`;
@@ -370,17 +395,49 @@
 
   // ── Selection ──────────────────────────────────────────────────────────────
 
-  function selectCell(ri, ci) {
-    S.selectedRow = ri;
-    S.selectedCol = ci;
+  function buildRangeSet(r1, c1, r2, c2) {
+    const cells = new Set();
+    const minR = Math.min(r1, r2), maxR = Math.max(r1, r2);
+    const minC = Math.min(c1, c2), maxC = Math.max(c1, c2);
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        cells.add(`${r},${c}`);
+      }
+    }
+    return cells;
+  }
+
+  function selectCell(ri, ci, shiftKey = false, ctrlKey = false) {
+    if (shiftKey && S.anchorCell !== null) {
+      S.selectedCells = buildRangeSet(S.anchorCell.ri, S.anchorCell.ci, ri, ci);
+      S.selectedRow = ri;
+      S.selectedCol = -1;
+    } else if (ctrlKey) {
+      const key = `${ri},${ci}`;
+      if (S.selectedCells.has(key)) {
+        S.selectedCells.delete(key);
+      } else {
+        S.selectedCells.add(key);
+      }
+      S.anchorCell = { ri, ci };
+      S.selectedRow = ri;
+      S.selectedCol = -1;
+    } else {
+      S.selectedCells = new Set([`${ri},${ci}`]);
+      S.anchorCell = { ri, ci };
+      S.selectedRow = ri;
+      S.selectedCol = ci;
+    }
     refreshSelection();
-    applyDuplicateHighlight(ci);
+    applyDuplicateHighlight(S.selectedCol);
     updateStatus();
   }
 
   function selectRow(ri) {
     S.selectedRow = ri;
     S.selectedCol = -1;
+    S.selectedCells = new Set();
+    S.anchorCell = null;
     refreshSelection();
     applyDuplicateHighlight(-1);
     updateStatus();
@@ -389,6 +446,8 @@
   function selectColumn(ci) {
     S.selectedCol = ci;
     S.selectedRow = -1;
+    S.selectedCells = new Set();
+    S.anchorCell = null;
     // Highlight column header
     document.querySelectorAll('th.selected-col-header').forEach(
       el => el.classList.remove('selected-col-header')
@@ -402,6 +461,7 @@
   function refreshSelection() {
     document.querySelectorAll('tr.selected-row').forEach(el => el.classList.remove('selected-row'));
     document.querySelectorAll('td.selected-cell').forEach(el => el.classList.remove('selected-cell'));
+    document.querySelectorAll('td.range-selected').forEach(el => el.classList.remove('range-selected'));
     document.querySelectorAll('th.selected-col-header').forEach(
       el => el.classList.remove('selected-col-header')
     );
@@ -409,12 +469,100 @@
     const tr = tableBody.querySelector(`tr[data-row="${S.selectedRow}"]`);
     if (tr) tr.classList.add('selected-row');
 
-    if (S.selectedRow >= 0 && S.selectedCol >= 0) {
+    if (S.selectedCells.size > 1) {
+      S.selectedCells.forEach(key => {
+        const [r, c] = key.split(',');
+        const td = tableBody.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+        if (td) td.classList.add('range-selected');
+      });
+    } else if (S.selectedRow >= 0 && S.selectedCol >= 0) {
       const td = tableBody.querySelector(
         `td[data-row="${S.selectedRow}"][data-col="${S.selectedCol}"]`
       );
       if (td) td.classList.add('selected-cell');
     }
+  }
+
+  // ── Undo / Redo ────────────────────────────────────────────────────────────
+
+  const HISTORY_LIMIT = 50;
+
+  function snapshot() {
+    S.history.splice(S.historyIndex + 1);
+    S.history.push({ rows: S.rows.map(r => [...r]), columns: [...S.columns] });
+    if (S.history.length > HISTORY_LIMIT) S.history.shift();
+    S.historyIndex = S.history.length - 1;
+  }
+
+  function applyHistoryState(state) {
+    S.rows    = state.rows.map(r => [...r]);
+    S.columns = [...state.columns];
+    S.dirty   = S.historyIndex > 0;
+    S.selectedCells = new Set();
+    S.anchorCell    = null;
+    renderTable();
+    renderPagination();
+    updateStatus();
+    if (!S.dirty) vscode.postMessage({ type: 'revert' });
+  }
+
+  function undo() {
+    commitActiveEdit();
+    if (S.historyIndex <= 0) return;
+    S.historyIndex--;
+    applyHistoryState(S.history[S.historyIndex]);
+  }
+
+  function redo() {
+    if (S.historyIndex >= S.history.length - 1) return;
+    S.historyIndex++;
+    applyHistoryState(S.history[S.historyIndex]);
+  }
+
+  // ── Copy / Paste ───────────────────────────────────────────────────────────
+
+  function copySelection() {
+    if (S.selectedCells.size === 0) return;
+    const coords = [...S.selectedCells].map(k => k.split(',').map(Number));
+    const minR = Math.min(...coords.map(([r]) => r));
+    const maxR = Math.max(...coords.map(([r]) => r));
+    const minC = Math.min(...coords.map(([, c]) => c));
+    const maxC = Math.max(...coords.map(([, c]) => c));
+
+    const lines = [];
+    for (let r = minR; r <= maxR; r++) {
+      const cells = [];
+      for (let c = minC; c <= maxC; c++) {
+        cells.push(S.selectedCells.has(`${r},${c}`) ? (S.rows[r]?.[c] ?? '') : '');
+      }
+      lines.push(cells.join('\t'));
+    }
+    navigator.clipboard.writeText(lines.join('\n'));
+  }
+
+  async function pasteSelection() {
+    if (S.selectedCells.size === 0) return;
+    const text = await navigator.clipboard.readText().catch(() => '');
+    if (!text) return;
+    snapshot();
+
+    const coords = [...S.selectedCells].map(k => k.split(',').map(Number));
+    const startR = Math.min(...coords.map(([r]) => r));
+    const startC = Math.min(...coords.map(([, c]) => c));
+
+    const pasteRows = text.split('\n').map(line => line.split('\t'));
+    for (let dr = 0; dr < pasteRows.length; dr++) {
+      const targetR = startR + dr;
+      if (targetR >= S.rows.length) break;
+      for (let dc = 0; dc < pasteRows[dr].length; dc++) {
+        const targetC = startC + dc;
+        if (targetC >= S.columns.length) break;
+        while (S.rows[targetR].length <= targetC) S.rows[targetR].push('');
+        S.rows[targetR][targetC] = pasteRows[dr][dc];
+      }
+    }
+    markDirty();
+    renderBody();
   }
 
   // ── Header editing ─────────────────────────────────────────────────────────
@@ -469,6 +617,7 @@
       return;
     }
 
+    snapshot();
     S.columns[ci] = newName;
     markDirty();
     // カラム名変更で日付バリデーション対象が変わるため本体も再描画
@@ -552,16 +701,22 @@
     if (!activeEdit) return;
     const { input, td, ri, ci } = activeEdit;
     const newValue = input.value;
+    const oldValue = S.rows[ri]?.[ci] ?? '';
     activeEdit = null;
 
-    // Update state
+    td.classList.remove('editing');
+
+    if (newValue === oldValue) {
+      setCellDisplay(td, newValue, S.columns[ci] ?? '');
+      return;
+    }
+
+    snapshot();
     while (S.rows.length <= ri) S.rows.push([]);
     while (S.rows[ri].length <= ci) S.rows[ri].push('');
     S.rows[ri][ci] = newValue;
 
-    td.classList.remove('editing');
     setCellDisplay(td, newValue, S.columns[ci] ?? '');
-
     markDirty();
   }
 
@@ -593,6 +748,7 @@
 
   btnAddRow.addEventListener('click', () => {
     commitActiveEdit();
+    snapshot();
     const insertAt = S.selectedRow >= 0 ? S.selectedRow + 1 : S.rows.length;
     S.rows.splice(insertAt, 0, new Array(S.columns.length).fill(''));
     S.selectedRow = insertAt;
@@ -604,6 +760,7 @@
   btnDelRow.addEventListener('click', () => {
     commitActiveEdit();
     if (S.selectedRow < 0 || S.selectedRow >= S.rows.length) return;
+    snapshot();
     S.rows.splice(S.selectedRow, 1);
     S.selectedRow = Math.min(S.selectedRow, S.rows.length - 1);
     markDirty();
@@ -614,6 +771,7 @@
   function duplicateRow() {
     if (S.selectedRow < 0 || S.selectedRow >= S.rows.length) return;
     commitActiveEdit();
+    snapshot();
     const copy = S.rows[S.selectedRow].slice();
     const insertAt = S.selectedRow + 1;
     S.rows.splice(insertAt, 0, copy);
@@ -629,6 +787,7 @@
 
   btnAddCol.addEventListener('click', () => {
     commitActiveEdit();
+    snapshot();
     const insertAt = S.selectedCol >= 0 ? S.selectedCol + 1 : S.columns.length;
     let name = 'NewColumn';
     let n = 1;
@@ -643,6 +802,7 @@
   btnDelCol.addEventListener('click', () => {
     commitActiveEdit();
     if (S.selectedCol < 0 || S.selectedCol >= S.columns.length) return;
+    snapshot();
     S.columns.splice(S.selectedCol, 1);
     S.rows.forEach(row => row.splice(S.selectedCol, 1));
     S.selectedCol = Math.min(S.selectedCol, S.columns.length - 1);
@@ -696,12 +856,33 @@
       commitActiveEdit();
       sendSaveData();
     }
+    // Ctrl+Z / Cmd+Z → undo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !activeEdit) {
+      e.preventDefault();
+      undo();
+    }
+    // Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z → redo
+    if (!activeEdit && (
+      ((e.ctrlKey || e.metaKey) && e.key === 'y') ||
+      ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z')
+    )) {
+      e.preventDefault();
+      redo();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && S.selectedCells.size > 0 && !activeEdit) {
+      e.preventDefault();
+      copySelection();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v' && S.selectedCells.size > 0 && !activeEdit) {
+      e.preventDefault();
+      pasteSelection();
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === 'd' && S.selectedRow >= 0 && !activeEdit) {
       e.preventDefault();
       duplicateRow();
     }
     if (e.key === 'Delete' && S.selectedRow >= 0 && !activeEdit) {
-      // Clear selected row on Delete key (without removing it)
+      snapshot();
       S.rows[S.selectedRow] = new Array(S.columns.length).fill('');
       markDirty();
       renderBody();

@@ -211,6 +211,12 @@ td.row-num {
   background: var(--vscode-list-focusBackground, var(--vscode-list-hoverBackground));
 }
 
+#data-table td.range-selected {
+  background: var(--vscode-list-inactiveSelectionBackground) !important;
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
 /* NULL cells */
 td.null-cell {
   background: color-mix(in srgb, var(--vscode-errorForeground, #f44) 8%, transparent) !important;
