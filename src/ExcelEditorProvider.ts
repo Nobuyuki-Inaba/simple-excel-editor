@@ -353,6 +353,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     <div class="toolbar-left">
       <button id="btn-add-row"    title="選択行の下に行を追加">＋ 行</button>
       <button id="btn-delete-row" title="選択行を削除">－ 行</button>
+      <button id="btn-dup-row"    title="選択行を複製して直下に挿入 (Ctrl+D)">複製 行</button>
       <button id="btn-add-col"    title="選択列の右に列を追加">＋ 列</button>
       <button id="btn-delete-col" title="選択列を削除">－ 列</button>
     </div>
