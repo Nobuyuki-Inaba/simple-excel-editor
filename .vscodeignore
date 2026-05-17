@@ -7,3 +7,6 @@ src/**
 **/*.ts
 node_modules/**
 out/**/*.map
+media/src/**
+.mocharc.js
+.gitattributes

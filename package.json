@@ -108,8 +108,9 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p tsconfig.build.json",
-    "watch": "tsc -watch -p tsconfig.build.json",
+    "build:webview": "esbuild media/src/main.ts --bundle --outfile=media/editor.js --format=iife --target=es2020",
+    "compile": "tsc -p tsconfig.build.json && npm run build:webview",
+    "watch": "tsc -watch -p tsconfig.build.json & npm run build:webview -- --watch",
     "test": "mocha",
     "package": "vsce package --no-dependencies"
   },
@@ -118,6 +119,7 @@
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.28.0",
     "mocha": "^10.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"

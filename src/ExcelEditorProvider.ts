@@ -1,17 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
-import * as crypto from 'crypto';
 import { JavaRunner } from './JavaRunner';
 import { parseCsv, serializeCsv, generateColumnNames } from './CsvUtils';
-
-// ─── Data types ───────────────────────────────────────────────────────────────
-
-interface SheetData {
-  columns: string[];
-  rows: string[][];
-}
+import { ExcelDocument, SheetData } from './ExcelDocument';
 
 // Callback type used to resolve a pending webview-data request
 type WebviewDataResolver = (data: {
@@ -19,35 +11,6 @@ type WebviewDataResolver = (data: {
   columns: string[];
   rows: string[][];
 }) => void;
-
-// ─── Document ─────────────────────────────────────────────────────────────────
-
-class ExcelDocument implements vscode.CustomDocument {
-  readonly uri: vscode.Uri;
-  readonly tmpDir: string;
-
-  sheets: string[] = [];
-  activeSheet = '';
-  cache = new Map<string, SheetData>();
-
-  constructor(uri: vscode.Uri) {
-    this.uri = uri;
-    this.tmpDir = path.join(
-      os.tmpdir(),
-      'simple-excel-editor',
-      crypto.randomBytes(8).toString('hex')
-    );
-    fs.mkdirSync(this.tmpDir, { recursive: true });
-  }
-
-  dispose(): void {
-    try {
-      fs.rmSync(this.tmpDir, { recursive: true, force: true });
-    } catch {
-      // best-effort cleanup
-    }
-  }
-}
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
