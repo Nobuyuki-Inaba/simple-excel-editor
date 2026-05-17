@@ -97,6 +97,7 @@ export function renderBody(): void {
     tr.dataset.row = String(ri);
     const rowHighlighted = S.selectedRows.size > 0 ? S.selectedRows.has(ri) : ri === S.selectedRow;
     if (rowHighlighted) tr.classList.add('selected-row');
+    if (S.fkHighlightRows.has(ri)) tr.classList.add('fk-highlight-row');
 
     const tdNum = document.createElement('td');
     tdNum.className = 'row-num';

@@ -32,6 +32,9 @@ This is a **VSCode Custom Editor extension** for `.xlsx`/`.xls`/`.xlsm` files. I
 The extension host (`src/`) owns file I/O and Excel↔CSV conversion. The webview (`media/src/`) owns all edit state, undo/redo, filtering, and rendering. The host is effectively stateless after initialization — it stores cached sheet data in `ExcelDocument` but defers to the webview for all mutations.
 
 **Messages host → webview:** `init`, `sheetData`, `requestSave`
+- `init` payload includes `allSheetColumns: Record<string, string[]>` (column names for every sheet, for FK navigation)
+- `sheetData` payload also includes `allSheetColumns`
+
 **Messages webview → host:** `ready`, `edit`, `switchSheet`, `saveData`, `revert`
 
 ### Data Flow
@@ -55,6 +58,7 @@ The extension host (`src/`) owns file I/O and Excel↔CSV conversion. The webvie
 | `media/src/state.ts` | Global state object `S` and DOM element refs |
 | `media/src/render.ts` | State → DOM; table, column headers, pagination, status bar |
 | `media/src/selection.ts` | Cell/row/column selection with Shift+click / Ctrl+click |
+| `media/src/fkNav.ts` | FK reference navigation: `updateFkButtons`, `applyFkHighlight`, `clearFkHighlight` |
 | `media/src/edit/cell.ts` | Inline cell editing; undo/redo stack (max 50 entries) |
 | `media/src/edit/clipboard.ts` | Copy/paste via Clipboard API |
 | `media/src/data/operations.ts` | Row/column mutations, filtering, pagination |
@@ -63,6 +67,12 @@ The extension host (`src/`) owns file I/O and Excel↔CSV conversion. The webvie
 ### External Dependency: exceltocsv JAR
 
 All Excel parsing and writing is delegated to `lib/exceltocsv.jar` (not included in this repo — must be built from the sibling Java project and placed there manually). Java 21+ is required at runtime.
+
+### Cross-Sheet FK Navigation (issue #9)
+
+When a single cell is selected, `fkNav.ts:updateFkButtons` checks `S.allSheetColumns` to find other sheets with the same column name. If found, a "→ [sheet] で参照" button (or dropdown for multiple sheets) appears in the toolbar. Clicking it sets `S.pendingFkHighlight` and calls `requestSwitchSheet`. After `sheetData` arrives, `applyFkHighlight` scans the new sheet's rows, sets `S.fkHighlightRows`, and scrolls to the first match. Making any new selection clears the highlight via `clearFkHighlight`.
+
+`sendInit` now eagerly loads **all** sheets into `doc.cache` so `allSheetColumns` is always complete.
 
 ### NULL / EMPTY Distinction
 

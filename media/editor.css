@@ -403,3 +403,43 @@ td.editing {
 td.row-num {
   cursor: pointer;
 }
+
+/* ── FK navigation ────────────────────────────────────────────────────────── */
+#fk-nav-area {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#fk-nav-area[hidden] {
+  display: none;
+}
+
+#btn-fk-single,
+#btn-fk-go {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: transparent;
+  white-space: nowrap;
+}
+
+#btn-fk-single:hover:not(:disabled),
+#btn-fk-go:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+
+#fk-sheet-select {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-editorGroup-border));
+  border-radius: 2px;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-family: inherit;
+  max-width: 140px;
+}
+
+/* FK reference highlight */
+tr.fk-highlight-row > td:not(.row-num) {
+  background: color-mix(in srgb, var(--vscode-charts-green, #4caf50) 22%, transparent) !important;
+}

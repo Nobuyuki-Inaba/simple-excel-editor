@@ -21,7 +21,11 @@
     anchorRow: -1,
     history: [],
     historyIndex: -1,
-    dirty: false
+    dirty: false,
+    // FK navigation
+    allSheetColumns: {},
+    pendingFkHighlight: null,
+    fkHighlightRows: /* @__PURE__ */ new Set()
   };
   var $ = (id) => document.getElementById(id);
   var headerRow = $("header-row");
@@ -202,6 +206,7 @@
       tr.dataset.row = String(ri);
       const rowHighlighted = S.selectedRows.size > 0 ? S.selectedRows.has(ri) : ri === S.selectedRow;
       if (rowHighlighted) tr.classList.add("selected-row");
+      if (S.fkHighlightRows.has(ri)) tr.classList.add("fk-highlight-row");
       const tdNum = document.createElement("td");
       tdNum.className = "row-num";
       tdNum.textContent = String(ri + 1);
@@ -296,6 +301,89 @@
     });
   }
 
+  // media/src/fkNav.ts
+  var fkNavArea = document.getElementById("fk-nav-area");
+  var fkSingleBtn = document.getElementById("btn-fk-single");
+  var fkSelect = document.getElementById("fk-sheet-select");
+  var fkGoBtn = document.getElementById("btn-fk-go");
+  function updateFkButtons(ci, ri) {
+    if (ci < 0 || ri < 0) {
+      fkNavArea.hidden = true;
+      return;
+    }
+    const colName = S.columns[ci];
+    const value = S.rows[ri]?.[ci];
+    if (!colName || value === void 0) {
+      fkNavArea.hidden = true;
+      return;
+    }
+    const targets = S.sheets.filter(
+      (s) => s !== S.activeSheet && S.allSheetColumns[s]?.includes(colName)
+    );
+    if (targets.length === 0) {
+      fkNavArea.hidden = true;
+      return;
+    }
+    fkNavArea.hidden = false;
+    if (targets.length === 1) {
+      fkSingleBtn.hidden = false;
+      fkSingleBtn.textContent = `\u2192 ${targets[0]} \u3067\u53C2\u7167`;
+      fkSingleBtn.onclick = () => navigateToFk(targets[0], colName, value);
+      fkSelect.hidden = true;
+      fkGoBtn.hidden = true;
+    } else {
+      fkSingleBtn.hidden = true;
+      fkSelect.innerHTML = "";
+      targets.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        fkSelect.appendChild(opt);
+      });
+      fkSelect.hidden = false;
+      fkGoBtn.hidden = false;
+      fkGoBtn.onclick = () => navigateToFk(fkSelect.value, colName, value);
+    }
+  }
+  function navigateToFk(targetSheet, columnName, value) {
+    S.pendingFkHighlight = { columnName, value };
+    S.fkHighlightRows = /* @__PURE__ */ new Set();
+    fkNavArea.hidden = true;
+    requestSwitchSheet(targetSheet);
+  }
+  function applyFkHighlight() {
+    const hint = S.pendingFkHighlight;
+    if (!hint) return;
+    S.pendingFkHighlight = null;
+    const ci = S.columns.indexOf(hint.columnName);
+    if (ci < 0) {
+      statusBar.textContent = "\u26A0 \u53C2\u7167\u5148\u306E\u5217\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093";
+      return;
+    }
+    const matchRows = [];
+    S.rows.forEach((row, ri) => {
+      if ((row[ci] ?? "") === hint.value) matchRows.push(ri);
+    });
+    if (matchRows.length === 0) {
+      S.fkHighlightRows = /* @__PURE__ */ new Set();
+      statusBar.textContent = "\u26A0 \u4E00\u81F4\u3059\u308B\u30EC\u30B3\u30FC\u30C9\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093";
+      return;
+    }
+    S.fkHighlightRows = new Set(matchRows);
+    S.page = Math.floor(matchRows[0] / S.pageSize);
+    renderBody();
+    renderPagination();
+    requestAnimationFrame(() => {
+      const tr = tableBody.querySelector(`tr[data-row="${matchRows[0]}"]`);
+      tr?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }
+  function clearFkHighlight() {
+    if (S.fkHighlightRows.size === 0) return;
+    S.fkHighlightRows = /* @__PURE__ */ new Set();
+    renderBody();
+  }
+
   // media/src/selection.ts
   function buildRangeSet(r1, c1, r2, c2) {
     const cells = /* @__PURE__ */ new Set();
@@ -331,8 +419,10 @@
       S.selectedRow = ri;
       S.selectedCol = ci;
     }
+    clearFkHighlight();
     refreshSelection();
     applyDuplicateHighlight(S.selectedCol);
+    updateFkButtons(S.selectedCol, S.selectedRow);
     updateStatus();
   }
   function selectRow(ri, shift = false, ctrl = false) {
@@ -353,8 +443,10 @@
     S.selectedCol = -1;
     S.selectedCells = /* @__PURE__ */ new Set();
     S.anchorCell = null;
+    clearFkHighlight();
     refreshSelection();
     applyDuplicateHighlight(-1);
+    updateFkButtons(-1, -1);
     updateStatus();
   }
   function selectColumn(ci) {
@@ -369,7 +461,9 @@
     );
     const th = headerRow.querySelector(`th[data-col="${ci}"]`);
     if (th) th.classList.add("selected-col-header");
+    clearFkHighlight();
     applyDuplicateHighlight(ci);
+    updateFkButtons(-1, -1);
     updateStatus();
   }
   function refreshSelection() {
@@ -804,6 +898,7 @@
         S.pageSize = msg.pageSize;
         S.nullMarkers = msg.nullMarkers;
         S.emptyMarkers = msg.emptyMarkers;
+        S.allSheetColumns = msg.allSheetColumns ?? {};
         S.filterText = "";
         filterInput.value = "";
         S.page = 0;
@@ -814,6 +909,8 @@
         S.anchorCell = null;
         S.selectedRows = /* @__PURE__ */ new Set();
         S.anchorRow = -1;
+        S.fkHighlightRows = /* @__PURE__ */ new Set();
+        S.pendingFkHighlight = null;
         S.history = [{ rows: msg.rows.map((r) => [...r]), columns: [...msg.columns] }];
         S.historyIndex = 0;
         render();
@@ -822,6 +919,7 @@
         S.activeSheet = msg.sheetName;
         S.columns = msg.columns;
         S.rows = msg.rows;
+        S.allSheetColumns = msg.allSheetColumns ?? S.allSheetColumns;
         S.filterText = "";
         filterInput.value = "";
         S.page = 0;
@@ -831,12 +929,14 @@
         S.anchorCell = null;
         S.selectedRows = /* @__PURE__ */ new Set();
         S.anchorRow = -1;
+        S.fkHighlightRows = /* @__PURE__ */ new Set();
         S.history = [{ rows: msg.rows.map((r) => [...r]), columns: [...msg.columns] }];
         S.historyIndex = 0;
         renderSheetTabs();
         renderTable();
         renderPagination();
         updateStatus();
+        applyFkHighlight();
         break;
       case "sheetAdded":
         S.sheets = msg.sheets;

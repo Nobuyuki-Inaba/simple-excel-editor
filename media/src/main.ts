@@ -6,6 +6,7 @@ import { startEdit, startHeaderEdit, commitActiveEdit, undo, redo,
          snapshot, isEditing } from './edit/cell';
 import { copySelection, pasteSelection } from './edit/clipboard';
 import { setupListeners, duplicateRow } from './data/operations';
+import { applyFkHighlight } from './fkNav';
 
 // Break state→render circular dep: register updateStatus callback
 registerUpdateStatus(updateStatus);
@@ -94,47 +95,53 @@ window.addEventListener('message', event => {
   const msg = event.data as { type: string; [key: string]: unknown };
   switch (msg.type) {
     case 'init':
-      S.sheets        = msg.sheets as string[];
-      S.activeSheet   = msg.activeSheet as string;
-      S.columns       = msg.columns as string[];
-      S.rows          = msg.rows as string[][];
-      S.pageSize      = msg.pageSize as number;
-      S.nullMarkers   = msg.nullMarkers as string[];
-      S.emptyMarkers  = msg.emptyMarkers as string[];
-      S.filterText    = '';
-      filterInput.value = '';
-      S.page          = 0;
-      S.dirty         = false;
-      S.selectedRow   = -1;
-      S.selectedCol   = -1;
-      S.selectedCells = new Set();
-      S.anchorCell    = null;
-      S.selectedRows  = new Set();
-      S.anchorRow     = -1;
+      S.sheets            = msg.sheets as string[];
+      S.activeSheet       = msg.activeSheet as string;
+      S.columns           = msg.columns as string[];
+      S.rows              = msg.rows as string[][];
+      S.pageSize          = msg.pageSize as number;
+      S.nullMarkers       = msg.nullMarkers as string[];
+      S.emptyMarkers      = msg.emptyMarkers as string[];
+      S.allSheetColumns   = (msg.allSheetColumns as Record<string, string[]>) ?? {};
+      S.filterText        = '';
+      filterInput.value   = '';
+      S.page              = 0;
+      S.dirty             = false;
+      S.selectedRow       = -1;
+      S.selectedCol       = -1;
+      S.selectedCells     = new Set();
+      S.anchorCell        = null;
+      S.selectedRows      = new Set();
+      S.anchorRow         = -1;
+      S.fkHighlightRows   = new Set();
+      S.pendingFkHighlight = null;
       S.history       = [{ rows: (msg.rows as string[][]).map(r => [...r]), columns: [...(msg.columns as string[])] }];
       S.historyIndex  = 0;
       render();
       break;
 
     case 'sheetData':
-      S.activeSheet   = msg.sheetName as string;
-      S.columns       = msg.columns as string[];
-      S.rows          = msg.rows as string[][];
-      S.filterText    = '';
-      filterInput.value = '';
-      S.page          = 0;
-      S.selectedRow   = -1;
-      S.selectedCol   = -1;
-      S.selectedCells = new Set();
-      S.anchorCell    = null;
-      S.selectedRows  = new Set();
-      S.anchorRow     = -1;
+      S.activeSheet       = msg.sheetName as string;
+      S.columns           = msg.columns as string[];
+      S.rows              = msg.rows as string[][];
+      S.allSheetColumns   = (msg.allSheetColumns as Record<string, string[]>) ?? S.allSheetColumns;
+      S.filterText        = '';
+      filterInput.value   = '';
+      S.page              = 0;
+      S.selectedRow       = -1;
+      S.selectedCol       = -1;
+      S.selectedCells     = new Set();
+      S.anchorCell        = null;
+      S.selectedRows      = new Set();
+      S.anchorRow         = -1;
+      S.fkHighlightRows   = new Set();
       S.history       = [{ rows: (msg.rows as string[][]).map(r => [...r]), columns: [...(msg.columns as string[])] }];
       S.historyIndex  = 0;
       renderSheetTabs();
       renderTable();
       renderPagination();
       updateStatus();
+      applyFkHighlight();
       break;
 
     case 'sheetAdded':

@@ -253,6 +253,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
           sheetName,
           columns: data.columns,
           rows: data.rows,
+          allSheetColumns: this.buildAllSheetColumns(doc),
         });
         break;
       }
@@ -297,7 +298,20 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     const pageSize = cfg.get<number>('pageSize', 200);
     const nullMarkers = cfg.get<string[]>('nullMarkers', ['[null]']);
     const emptyMarkers = cfg.get<string[]>('emptyMarkers', ['[empty]']);
+
+    // Eagerly load all sheets so FK navigation can resolve column names
+    for (const sheetName of doc.sheets) {
+      if (!doc.cache.has(sheetName)) {
+        try {
+          doc.cache.set(sheetName, await this.loadSheet(doc, sheetName));
+        } catch {
+          // Non-fatal: sheet will be missing from allSheetColumns
+        }
+      }
+    }
+
     const data = doc.cache.get(doc.activeSheet) ?? { columns: [], rows: [] };
+    const allSheetColumns = this.buildAllSheetColumns(doc);
 
     panel.webview.postMessage({
       type: 'init',
@@ -308,7 +322,16 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       pageSize,
       nullMarkers,
       emptyMarkers,
+      allSheetColumns,
     });
+  }
+
+  private buildAllSheetColumns(doc: ExcelDocument): Record<string, string[]> {
+    const result: Record<string, string[]> = {};
+    for (const [name, data] of doc.cache) {
+      result[name] = data.columns;
+    }
+    return result;
   }
 
   // ── Webview HTML ────────────────────────────────────────────────────────────
@@ -345,6 +368,11 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     <div id="filter-area">
       <input type="text" id="filter-input" placeholder="検索..." autocomplete="off" spellcheck="false">
       <button id="btn-filter-clear" title="検索クリア">✕</button>
+    </div>
+    <div id="fk-nav-area" hidden>
+      <button id="btn-fk-single" hidden></button>
+      <select id="fk-sheet-select" hidden></select>
+      <button id="btn-fk-go" hidden>→ 参照</button>
     </div>
     <div class="toolbar-right">
       <span class="hint">NULL: Alt+N ｜ 空文字: Alt+E</span>
