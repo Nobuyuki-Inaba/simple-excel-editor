@@ -169,6 +169,7 @@
       th.dataset.col = String(ci);
       if (ci === S.selectedCol) th.classList.add('selected-col-header');
       th.addEventListener('click', () => selectColumn(ci));
+      th.addEventListener('dblclick', () => startHeaderEdit(th, ci));
       headerRow.appendChild(th);
     });
   }
@@ -371,6 +372,73 @@
       );
       if (td) td.classList.add('selected-cell');
     }
+  }
+
+  // ── Header editing ─────────────────────────────────────────────────────────
+
+  let activeHeaderEdit = /** @type {{ input: HTMLInputElement, th: HTMLElement, ci: number, original: string }|null} */ (null);
+
+  function startHeaderEdit(th, ci) {
+    if (activeHeaderEdit) commitHeaderEdit();
+    commitActiveEdit();
+
+    const original = S.columns[ci] ?? '';
+    th.classList.add('editing');
+    th.innerHTML = '';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'header-input';
+    input.value = original;
+    th.appendChild(input);
+    input.focus();
+    input.select();
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        commitHeaderEdit();
+      } else if (e.key === 'Escape') {
+        cancelHeaderEdit();
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      if (activeHeaderEdit && activeHeaderEdit.input === input) {
+        commitHeaderEdit();
+      }
+    });
+
+    activeHeaderEdit = { input, th, ci, original };
+  }
+
+  function commitHeaderEdit() {
+    if (!activeHeaderEdit) return;
+    const { input, th, ci, original } = activeHeaderEdit;
+    const newName = input.value.trim();
+    activeHeaderEdit = null;
+    th.classList.remove('editing');
+
+    if (!newName) {
+      // 空文字は無効 — 元の名前に戻す
+      th.textContent = original || `(${colLabel(ci)})`;
+      th.title = original;
+      return;
+    }
+
+    S.columns[ci] = newName;
+    markDirty();
+    // カラム名変更で日付バリデーション対象が変わるため本体も再描画
+    renderTable();
+  }
+
+  function cancelHeaderEdit() {
+    if (!activeHeaderEdit) return;
+    const { th, ci, original } = activeHeaderEdit;
+    activeHeaderEdit = null;
+    th.classList.remove('editing');
+    th.textContent = original || `(${colLabel(ci)})`;
+    th.title = original;
   }
 
   // ── Cell editing ───────────────────────────────────────────────────────────
