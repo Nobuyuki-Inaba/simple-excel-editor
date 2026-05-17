@@ -15,6 +15,7 @@
     page: 0,                               // 0-based current page
     nullMarkers: /** @type {string[]} */ (['[null]']),
     emptyMarkers: /** @type {string[]} */ (['[empty]']),
+    filterText: '',
     selectedRow: -1,
     selectedCol: -1,
     dirty: false,
@@ -34,6 +35,8 @@
   const btnPrev      = $('btn-prev');
   const btnNext      = $('btn-next');
   const btnLast      = $('btn-last');
+  const filterInput    = $('filter-input');
+  const btnFilterClear = $('btn-filter-clear');
   const btnAddRow    = $('btn-add-row');
   const btnDelRow    = $('btn-delete-row');
   const btnDupRow    = $('btn-dup-row');
@@ -53,6 +56,8 @@
         S.pageSize      = msg.pageSize;
         S.nullMarkers   = msg.nullMarkers;
         S.emptyMarkers  = msg.emptyMarkers;
+        S.filterText    = '';
+        filterInput.value = '';
         S.page          = 0;
         S.dirty       = false;
         S.selectedRow = -1;
@@ -64,6 +69,8 @@
         S.activeSheet = msg.sheetName;
         S.columns     = msg.columns;
         S.rows        = msg.rows;
+        S.filterText  = '';
+        filterInput.value = '';
         S.page        = 0;
         S.selectedRow = -1;
         S.selectedCol = -1;
@@ -168,16 +175,16 @@
 
   function renderBody() {
     tableBody.innerHTML = '';
+    const displayRows = getDisplayRows();
     const offset = S.page * S.pageSize;
-    const slice  = S.rows.slice(offset, offset + S.pageSize);
+    const slice = displayRows.slice(offset, offset + S.pageSize);
 
-    slice.forEach((rowData, localRi) => {
-      const ri = offset + localRi;
+    slice.forEach(({ data: rowData, ri }) => {
       const tr = document.createElement('tr');
       tr.dataset.row = String(ri);
       if (ri === S.selectedRow) tr.classList.add('selected-row');
 
-      // Row number
+      // Row number (shows original index in S.rows)
       const tdNum = document.createElement('td');
       tdNum.className = 'row-num';
       tdNum.textContent = String(ri + 1);
@@ -229,9 +236,12 @@
   }
 
   function renderPagination() {
-    const total = totalPages();
+    const displayRows = getDisplayRows();
+    const total = Math.max(1, Math.ceil(displayRows.length / S.pageSize));
     pageInfo.textContent = `${S.page + 1} / ${total}`;
-    rowCount.textContent  = `${S.rows.length} 行`;
+    rowCount.textContent = S.filterText
+      ? `${displayRows.length} 件一致 / ${S.rows.length} 行`
+      : `${S.rows.length} 行`;
     btnFirst.disabled = S.page === 0;
     btnPrev.disabled  = S.page === 0;
     btnNext.disabled  = S.page >= total - 1;
@@ -245,8 +255,22 @@
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  function getDisplayRows() {
+    if (!S.filterText) {
+      return S.rows.map((data, ri) => ({ data, ri }));
+    }
+    const query = S.filterText.toLowerCase();
+    const result = [];
+    for (let ri = 0; ri < S.rows.length; ri++) {
+      if (S.rows[ri].some(cell => (cell ?? '').toLowerCase().includes(query))) {
+        result.push({ data: S.rows[ri], ri });
+      }
+    }
+    return result;
+  }
+
   function totalPages() {
-    return Math.max(1, Math.ceil(S.rows.length / S.pageSize));
+    return Math.max(1, Math.ceil(getDisplayRows().length / S.pageSize));
   }
 
   function isNullValue(v) {
@@ -499,6 +523,28 @@
   btnPrev.addEventListener('click',  () => goToPage(S.page - 1));
   btnNext.addEventListener('click',  () => goToPage(S.page + 1));
   btnLast.addEventListener('click',  () => goToPage(totalPages() - 1));
+
+  // ── Filter ─────────────────────────────────────────────────────────────────
+
+  filterInput.addEventListener('input', () => {
+    S.filterText = filterInput.value;
+    S.page = 0;
+    S.selectedRow = -1;
+    S.selectedCol = -1;
+    renderBody();
+    renderPagination();
+  });
+
+  btnFilterClear.addEventListener('click', () => {
+    filterInput.value = '';
+    S.filterText = '';
+    S.page = 0;
+    S.selectedRow = -1;
+    S.selectedCol = -1;
+    renderBody();
+    renderPagination();
+    filterInput.focus();
+  });
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
