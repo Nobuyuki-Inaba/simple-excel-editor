@@ -207,14 +207,14 @@
     td.dataset.row = String(ri);
     td.dataset.col = String(ci);
 
-    setCellDisplay(td, value);
+    setCellDisplay(td, value, S.columns[ci] ?? '');
 
     td.addEventListener('click', () => selectCell(ri, ci));
     td.addEventListener('dblclick', () => startEdit(td, ri, ci));
     return td;
   }
 
-  function setCellDisplay(td, value) {
+  function setCellDisplay(td, value, colName = '') {
     td.innerHTML = '';
     td.classList.remove('null-cell', 'empty-cell', 'date-warning-cell');
     td.removeAttribute('title');
@@ -233,7 +233,7 @@
       td.appendChild(span);
     } else {
       td.textContent = value;
-      if (isDateLike(value) && !isValidIsoDate(value)) {
+      if (isDateColumn(colName) && isDateLike(value) && !isValidIsoDate(value)) {
         td.classList.add('date-warning-cell');
         td.title = '⚠ 推奨フォーマット: yyyy-MM-dd または yyyy-MM-dd HH:mm:ss';
       }
@@ -284,6 +284,15 @@
 
   function isEmptyValue(v) {
     return S.emptyMarkers.includes(v);
+  }
+
+  // Column name patterns that suggest a date column (case-insensitive)
+  function isDateColumn(colName) {
+    const lower = colName.toLowerCase();
+    return lower.includes('date') ||
+           lower.includes('day')  ||
+           lower.includes('_on')  ||
+           lower.includes('_at');
   }
 
   function isDateLike(v) {
@@ -440,7 +449,7 @@
     S.rows[ri][ci] = newValue;
 
     td.classList.remove('editing');
-    setCellDisplay(td, newValue);
+    setCellDisplay(td, newValue, S.columns[ci] ?? '');
 
     markDirty();
   }
@@ -450,7 +459,7 @@
     const { td, ri, ci } = activeEdit;
     activeEdit = null;
     td.classList.remove('editing');
-    setCellDisplay(td, S.rows[ri]?.[ci] ?? '');
+    setCellDisplay(td, S.rows[ri]?.[ci] ?? '', S.columns[ci] ?? '');
   }
 
   function moveFocus(ri, ci) {
