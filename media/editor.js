@@ -35,6 +35,7 @@
   const btnLast      = $('btn-last');
   const btnAddRow    = $('btn-add-row');
   const btnDelRow    = $('btn-delete-row');
+  const btnDupRow    = $('btn-dup-row');
   const btnAddCol    = $('btn-add-col');
   const btnDelCol    = $('btn-delete-col');
 
@@ -425,6 +426,22 @@
     renderPagination();
   });
 
+  function duplicateRow() {
+    if (S.selectedRow < 0 || S.selectedRow >= S.rows.length) return;
+    commitActiveEdit();
+    const copy = S.rows[S.selectedRow].slice();
+    const insertAt = S.selectedRow + 1;
+    S.rows.splice(insertAt, 0, copy);
+    S.selectedRow = insertAt;
+    const targetPage = Math.floor(insertAt / S.pageSize);
+    if (targetPage !== S.page) S.page = targetPage;
+    markDirty();
+    renderBody();
+    renderPagination();
+  }
+
+  btnDupRow.addEventListener('click', () => duplicateRow());
+
   btnAddCol.addEventListener('click', () => {
     commitActiveEdit();
     const insertAt = S.selectedCol >= 0 ? S.selectedCol + 1 : S.columns.length;
@@ -471,6 +488,10 @@
       e.preventDefault();
       commitActiveEdit();
       sendSaveData();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'd' && S.selectedRow >= 0 && !activeEdit) {
+      e.preventDefault();
+      duplicateRow();
     }
     if (e.key === 'Delete' && S.selectedRow >= 0 && !activeEdit) {
       // Clear selected row on Delete key (without removing it)
