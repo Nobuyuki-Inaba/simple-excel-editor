@@ -240,6 +240,26 @@ td.empty-cell .empty-label {
   pointer-events: none;
 }
 
+/* Header editing */
+th.editing {
+  padding: 0;
+  overflow: visible;
+}
+
+.header-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 2px solid var(--vscode-focusBorder);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family, inherit);
+  font-size: var(--vscode-font-size, 13px);
+  font-weight: 600;
+  padding: 1px 6px;
+  outline: none;
+}
+
 /* Editing */
 td.editing {
   padding: 0;
