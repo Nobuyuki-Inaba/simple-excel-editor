@@ -37,6 +37,12 @@
           },
           {
             "filenamePattern": "*.xlsm"
+          },
+          {
+            "filenamePattern": "*.csv"
+          },
+          {
+            "filenamePattern": "table-ordering.txt"
           }
         ],
         "priority": "default"
