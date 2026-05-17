@@ -13,7 +13,8 @@
     rows: /** @type {string[][]} */ ([]),   // all data rows for current sheet
     pageSize: 200,
     page: 0,                               // 0-based current page
-    nullMarkers: /** @type {string[]} */ (['\\N']),
+    nullMarkers: /** @type {string[]} */ (['[null]']),
+    emptyMarkers: /** @type {string[]} */ (['[empty]']),
     selectedRow: -1,
     selectedCol: -1,
     dirty: false,
@@ -45,13 +46,14 @@
     const msg = event.data;
     switch (msg.type) {
       case 'init':
-        S.sheets      = msg.sheets;
-        S.activeSheet = msg.activeSheet;
-        S.columns     = msg.columns;
-        S.rows        = msg.rows;
-        S.pageSize    = msg.pageSize;
-        S.nullMarkers = msg.nullMarkers;
-        S.page        = 0;
+        S.sheets        = msg.sheets;
+        S.activeSheet   = msg.activeSheet;
+        S.columns       = msg.columns;
+        S.rows          = msg.rows;
+        S.pageSize      = msg.pageSize;
+        S.nullMarkers   = msg.nullMarkers;
+        S.emptyMarkers  = msg.emptyMarkers;
+        S.page          = 0;
         S.dirty       = false;
         S.selectedRow = -1;
         S.selectedCol = -1;
@@ -207,13 +209,19 @@
 
   function setCellDisplay(td, value) {
     td.innerHTML = '';
-    td.classList.remove('null-cell');
+    td.classList.remove('null-cell', 'empty-cell');
 
     if (isNullValue(value)) {
       td.classList.add('null-cell');
       const span = document.createElement('span');
       span.className = 'null-label';
       span.textContent = 'NULL';
+      td.appendChild(span);
+    } else if (isEmptyValue(value)) {
+      td.classList.add('empty-cell');
+      const span = document.createElement('span');
+      span.className = 'empty-label';
+      span.textContent = 'EMPTY';
       td.appendChild(span);
     } else {
       td.textContent = value;
@@ -245,8 +253,16 @@
     return S.nullMarkers.includes(v);
   }
 
+  function isEmptyValue(v) {
+    return S.emptyMarkers.includes(v);
+  }
+
   function primaryNullMarker() {
-    return S.nullMarkers[0] ?? '\\N';
+    return S.nullMarkers[0] ?? '[null]';
+  }
+
+  function primaryEmptyMarker() {
+    return S.emptyMarkers[0] ?? '[empty]';
   }
 
   function colLabel(i) {
@@ -341,9 +357,12 @@
       } else if (e.key === 'Escape') {
         cancelActiveEdit();
       } else if (e.key === 'n' && e.altKey) {
-        // Alt+N: insert the primary null marker
         e.preventDefault();
         input.value = primaryNullMarker();
+        autoResize(input);
+      } else if (e.key === 'e' && e.altKey) {
+        e.preventDefault();
+        input.value = primaryEmptyMarker();
         autoResize(input);
       }
     });
