@@ -160,7 +160,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     } else {
       // CSV / tableOrdering: write current cached state as xlsx
       const hasHeader = this.getHasHeader();
-      await this.io.writeWorkbook(context.destination.fsPath, document.cache, hasHeader);
+      await this.io.writeWorkbook(context.destination.fsPath, document.sheets, document.cache, hasHeader);
     }
     return {
       id: context.destination.toString(),
@@ -275,7 +275,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         document.cache.set(sheetName, { columns, rows });
         try {
           const hasHeader = this.getHasHeader();
-          await this.io.writeWorkbook(targetExcelPath, document.cache, hasHeader);
+          await this.io.writeWorkbook(targetExcelPath, document.sheets, document.cache, hasHeader);
           resolve();
         } catch (err: unknown) {
           reject(err);
@@ -452,6 +452,12 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         vscode.commands.executeCommand('workbench.action.openSettings', 'simpleExcelEditor');
         break;
       }
+      case 'moveSheet': {
+        const newSheets = msg.sheets as string[];
+        doc.sheets = newSheets;
+        this._onChange.fire({ document: doc });
+        break;
+      }
       case 'importCsv': {
         const uris = await vscode.window.showOpenDialog({
           canSelectMany: true,
@@ -598,6 +604,9 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
   <div id="context-menu">
     <div class="ctx-item ctx-for-row" id="ctx-create-sheet">選択行でシートを作成...</div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-move-left">← 左へ移動</div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-move-right">右へ移動 →</div>
+    <div class="ctx-separator ctx-for-sheet"></div>
     <div class="ctx-item ctx-for-sheet" id="ctx-rename-sheet">シート名を変更...</div>
     <div class="ctx-separator ctx-for-sheet"></div>
     <div class="ctx-item ctx-for-sheet" id="ctx-delete-sheet">シートを削除</div>

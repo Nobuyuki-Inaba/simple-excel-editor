@@ -26,9 +26,11 @@ export class ExcelJsIO implements IExcelIO {
     return extractSheetData(ws, hasHeader);
   }
 
-  async writeWorkbook(targetPath: string, cache: Map<string, SheetData>, hasHeader: boolean): Promise<void> {
+  async writeWorkbook(targetPath: string, sheets: string[], cache: Map<string, SheetData>, hasHeader: boolean): Promise<void> {
     const wb = new ExcelJS.Workbook();
-    for (const [sheetName, data] of cache) {
+    for (const sheetName of sheets) {
+      const data = cache.get(sheetName);
+      if (!data) continue;
       const ws = wb.addWorksheet(sheetName);
       const allRows = hasHeader ? [data.columns, ...data.rows] : data.rows;
       for (const row of allRows) {
