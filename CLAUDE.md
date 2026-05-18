@@ -94,6 +94,7 @@ The extension host (`src/`) owns file I/O and Excel read/write. The webview (`me
 - **CSV**: `openCsvDocument` reads the file directly via `CsvUtils.parseCsv`. On save, the file is converted to `.xlsx` via `ExcelJsIO.writeWorkbook` (new file). If a same-named `.xlsx` already exists, save is cancelled with a warning.
 - **table-ordering.txt**: `openTableOrderingDocument` reads each line as a CSV filename (relative to the txt file's dir). Lines starting with `#` are ignored. On save, all sheets are written to `{folderName}.xlsx` in the same directory.
 - **CSV追加ボタン**: Toolbar "CSV追加" triggers `importCsv` message → host opens file dialog → CSV is loaded into cache as a new sheet → `sheetAdded` + `sheetData` sent to webview.
+- **CSV出力ボタン**: Toolbar "CSV出力" triggers `exportCsv` message → host opens folder dialog → pre-flight check (all `{sheet}.csv` must not exist) → writes each sheet via `CsvUtils.serializeCsv` → writes `table-ordering.txt` with succeeded sheets. Conflicts found mid-write are reported as warnings; pre-flight conflicts cancel everything.
 - **Encoding**: UTF-8 only (BOM stripped if present). Shift-JIS support is a future task.
 
 ### Sheet Rename / Delete (issue #42)
