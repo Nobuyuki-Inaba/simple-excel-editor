@@ -1,4 +1,4 @@
-import { S, vscode, filterInput, statusBar, sheetTabsEl, registerUpdateStatus, sendSaveData, markDirty } from './state';
+import { S, vscode, filterInput, statusBar, sheetTabsEl, registerUpdateStatus, sendSaveData, markDirty, requestSwitchSheet } from './state';
 import { render, renderSheetTabs, renderTable, renderBody, renderPagination,
          updateStatus, registerRenderHandlers, startSheetRename } from './render';
 import { selectCell, selectRow, selectColumn } from './selection';
@@ -31,6 +31,12 @@ registerRenderHandlers({
     contextMenuSheetName = sheetName;
     showContextMenu(x, y, 'ctx-mode-sheet');
   },
+  onSheetMove: (newSheets) => {
+    S.sheets = newSheets;
+    markDirty();
+    renderSheetTabs();
+    vscode.postMessage({ type: 'moveSheet', sheets: newSheets });
+  },
 });
 
 // Button / filter event listeners
@@ -40,6 +46,8 @@ setupListeners();
 
 const contextMenu     = document.getElementById('context-menu')      as HTMLElement;
 const ctxCreateSheet  = document.getElementById('ctx-create-sheet')  as HTMLElement;
+const ctxMoveLeft     = document.getElementById('ctx-move-left')     as HTMLElement;
+const ctxMoveRight    = document.getElementById('ctx-move-right')    as HTMLElement;
 const ctxRenameSheet  = document.getElementById('ctx-rename-sheet')  as HTMLElement;
 const ctxDeleteSheet  = document.getElementById('ctx-delete-sheet')  as HTMLElement;
 
@@ -85,6 +93,32 @@ ctxCreateSheet.addEventListener('click', () => {
   hideContextMenu();
   const rows = [...S.selectedRows].sort((a, b) => a - b).map(ri => [...(S.rows[ri] ?? [])]);
   vscode.postMessage({ type: 'createSheet', columns: [...S.columns], rows });
+});
+
+ctxMoveLeft.addEventListener('click', () => {
+  hideContextMenu();
+  const idx = S.sheets.indexOf(contextMenuSheetName);
+  if (idx <= 0) return;
+  const next = [...S.sheets];
+  next.splice(idx, 1);
+  next.splice(idx - 1, 0, contextMenuSheetName);
+  S.sheets = next;
+  markDirty();
+  renderSheetTabs();
+  vscode.postMessage({ type: 'moveSheet', sheets: next });
+});
+
+ctxMoveRight.addEventListener('click', () => {
+  hideContextMenu();
+  const idx = S.sheets.indexOf(contextMenuSheetName);
+  if (idx < 0 || idx >= S.sheets.length - 1) return;
+  const next = [...S.sheets];
+  next.splice(idx, 1);
+  next.splice(idx + 1, 0, contextMenuSheetName);
+  S.sheets = next;
+  markDirty();
+  renderSheetTabs();
+  vscode.postMessage({ type: 'moveSheet', sheets: next });
 });
 
 ctxRenameSheet.addEventListener('click', () => {

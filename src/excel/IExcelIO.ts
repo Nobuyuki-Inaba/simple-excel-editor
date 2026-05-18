@@ -14,6 +14,6 @@ export interface IExcelIO {
   /** Excel ファイルの単一シートを読み込む（キャッシュミス時のフォールバック用） */
   readSheet(filePath: string, sheetName: string, hasHeader: boolean): Promise<SheetData>;
 
-  /** キャッシュ内の全シートを新規 Excel ファイルとして書き込む */
-  writeWorkbook(targetPath: string, cache: Map<string, SheetData>, hasHeader: boolean): Promise<void>;
+  /** キャッシュ内の全シートを新規 Excel ファイルとして書き込む。sheets の順序でワークシートを作成する */
+  writeWorkbook(targetPath: string, sheets: string[], cache: Map<string, SheetData>, hasHeader: boolean): Promise<void>;
 }

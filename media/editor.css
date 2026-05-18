@@ -388,6 +388,14 @@ td.editing {
   overflow: visible;
 }
 
+.sheet-tab.dragging {
+  opacity: 0.4;
+}
+
+.sheet-tab.drag-over {
+  border-left: 2px solid var(--vscode-focusBorder);
+}
+
 .sheet-tab-input {
   width: 140px;
   box-sizing: border-box;

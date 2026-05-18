@@ -14,6 +14,7 @@ type ColDblClickHandler = (th: HTMLElement, ci: number) => void;
 type CommitEditHandler = () => void;
 type SheetRenameHandler = (oldName: string, newName: string) => void;
 type SheetTabContextMenuHandler = (sheetName: string, x: number, y: number) => void;
+type SheetMoveHandler = (newSheets: string[]) => void;
 
 let onCellClick:            CellClickHandler           = () => {};
 let onCellDblClick:         CellDblClickHandler        = () => {};
@@ -23,6 +24,7 @@ let onColDblClick:          ColDblClickHandler         = () => {};
 let onCommitEdit:           CommitEditHandler          = () => {};
 let onSheetRename:          SheetRenameHandler         = () => {};
 let onSheetTabContextMenu:  SheetTabContextMenuHandler = () => {};
+let onSheetMove:            SheetMoveHandler           = () => {};
 
 export function registerRenderHandlers(handlers: {
   onCellClick:           CellClickHandler;
@@ -33,6 +35,7 @@ export function registerRenderHandlers(handlers: {
   onCommitEdit:          CommitEditHandler;
   onSheetRename:         SheetRenameHandler;
   onSheetTabContextMenu: SheetTabContextMenuHandler;
+  onSheetMove:           SheetMoveHandler;
 }): void {
   onCellClick           = handlers.onCellClick;
   onCellDblClick        = handlers.onCellDblClick;
@@ -42,6 +45,7 @@ export function registerRenderHandlers(handlers: {
   onCommitEdit          = handlers.onCommitEdit;
   onSheetRename         = handlers.onSheetRename;
   onSheetTabContextMenu = handlers.onSheetTabContextMenu;
+  onSheetMove           = handlers.onSheetMove;
 }
 
 // ── Render ──────────────────────────────────────────────────────────────────
@@ -53,6 +57,8 @@ export function render(): void {
   updateStatus();
 }
 
+let dragSrcSheet = '';
+
 export function renderSheetTabs(): void {
   sheetTabsEl.innerHTML = '';
   S.sheets.forEach(name => {
@@ -61,6 +67,8 @@ export function renderSheetTabs(): void {
     tab.textContent = name;
     tab.title = name;
     tab.dataset.sheet = name;
+    tab.draggable = true;
+
     tab.addEventListener('click', () => {
       if (name !== S.activeSheet) {
         onCommitEdit();
@@ -76,6 +84,37 @@ export function renderSheetTabs(): void {
       e.stopPropagation();
       onSheetTabContextMenu(name, e.clientX, e.clientY);
     });
+
+    tab.addEventListener('dragstart', e => {
+      dragSrcSheet = name;
+      tab.classList.add('dragging');
+      e.dataTransfer!.effectAllowed = 'move';
+    });
+    tab.addEventListener('dragend', () => {
+      tab.classList.remove('dragging');
+      sheetTabsEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    });
+    tab.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = 'move';
+      if (name !== dragSrcSheet) tab.classList.add('drag-over');
+    });
+    tab.addEventListener('dragleave', () => {
+      tab.classList.remove('drag-over');
+    });
+    tab.addEventListener('drop', e => {
+      e.preventDefault();
+      tab.classList.remove('drag-over');
+      if (!dragSrcSheet || dragSrcSheet === name) return;
+      const next = [...S.sheets];
+      const from = next.indexOf(dragSrcSheet);
+      const to   = next.indexOf(name);
+      if (from < 0 || to < 0) return;
+      next.splice(from, 1);
+      next.splice(to, 0, dragSrcSheet);
+      onSheetMove(next);
+    });
+
     sheetTabsEl.appendChild(tab);
   });
 }
