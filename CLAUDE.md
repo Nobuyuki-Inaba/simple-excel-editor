@@ -44,6 +44,7 @@ Excel reading/writing is done through `IExcelIO` interface (`src/excel/IExcelIO.
 - Supported formats: `.xlsx`, `.xlsm`. `.xls` (old binary) is not supported by ExcelJS.
 - All sheets are loaded eagerly at document open time (`readAllSheets`). No lazy per-sheet loading.
 - On save, `writeWorkbook` writes all cached sheets as a fresh workbook (formatting/formulas are not preserved).
+- Sheet order is determined by `doc.sheets` (not Map insertion order). `writeWorkbook` takes `sheets: string[]` as first arg to write in the correct order.
 
 ### Host ↔ Webview Split
 
@@ -53,7 +54,7 @@ The extension host (`src/`) owns file I/O and Excel read/write. The webview (`me
 - `init` payload includes `allSheetColumns: Record<string, string[]>` (column names for every sheet, for FK navigation)
 - `sheetData` payload also includes `allSheetColumns`
 
-**Messages webview → host:** `ready`, `edit`, `switchSheet`, `saveData`, `revert`, `importCsv`
+**Messages webview → host:** `ready`, `edit`, `switchSheet`, `saveData`, `revert`, `importCsv`, `openSettings`, `moveSheet`, `renameSheet`, `deleteSheet`, `createSheet`
 
 ### Data Flow
 
@@ -104,11 +105,24 @@ The extension host (`src/`) owns file I/O and Excel read/write. The webview (`me
 - **コンテキストメニュー**: `#context-menu` を `ctx-mode-row` / `ctx-mode-sheet` の CSS クラスで切り替え。行右クリックは `ctx-for-row` 項目、シートタブ右クリックは `ctx-for-sheet` 項目を表示。
 - `render.ts:startSheetRename(tab, currentName)` がインライン編集ロジックを担当。`main.ts` の `ctxRenameSheet` クリックハンドラからも呼ばれる。
 
+### Sheet Reorder (issue #5)
+
+シートタブのドラッグ&ドロップ、または右クリックメニューの「← 左へ移動」「右へ移動 →」で並び替え可能。
+
+- **D&D**: `render.ts:renderSheetTabs` がタブに `draggable=true` と dragstart/dragover/drop/dragend を付与。drop 時に `S.sheets` を再配列し `onSheetMove` コールバックを呼ぶ。
+- **コンテキストメニュー**: `ctx-move-left` / `ctx-move-right` クリックで同様の処理。
+- **webview → host**: `{ type: 'moveSheet', sheets: string[] }` を送信 → host が `doc.sheets` を更新し `_onChange.fire`。ホストから webview への返却メッセージはなし（webview 側で先に `S.sheets` 更新済み）。
+- **保存反映**: `writeWorkbook(targetPath, doc.sheets, cache, hasHeader)` で `doc.sheets` 順にシートを書き込む。
+
 ### Cross-Sheet FK Navigation (issue #9)
 
 When a single cell is selected, `fkNav.ts:updateFkButtons` checks `S.allSheetColumns` to find other sheets with the same column name. If found, a "→ [sheet] で参照" button (or dropdown for multiple sheets) appears in the toolbar. Clicking it sets `S.pendingFkHighlight` and calls `requestSwitchSheet`. After `sheetData` arrives, `applyFkHighlight` scans the new sheet's rows, sets `S.fkHighlightRows`, and scrolls to the first match. Making any new selection clears the highlight via `clearFkHighlight`.
 
 All sheets are loaded eagerly at open time, so `allSheetColumns` is always complete.
+
+### Settings Button (issue #44)
+
+ツールバー右端の `⚙` ボタン（`#btn-open-settings`）をクリックすると `openSettings` メッセージをホストへ送信。ホストが `workbench.action.openSettings simpleExcelEditor` を実行して設定画面を開く。コマンドパレットの `simpleExcelEditor.openSettings` コマンドも引き続き動作する。
 
 ### NULL / EMPTY Distinction
 
