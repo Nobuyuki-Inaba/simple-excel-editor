@@ -33,9 +33,6 @@
             "filenamePattern": "*.xlsx"
           },
           {
-            "filenamePattern": "*.xls"
-          },
-          {
             "filenamePattern": "*.xlsm"
           },
           {
@@ -57,16 +54,6 @@
     "configuration": {
       "title": "Simple Excel Editor",
       "properties": {
-        "simpleExcelEditor.javaPath": {
-          "type": "string",
-          "default": "",
-          "description": "Javaの実行ファイルパス。空の場合はVSCode Java拡張またはJAVA_HOMEから自動検出します。"
-        },
-        "simpleExcelEditor.jarPath": {
-          "type": "string",
-          "default": "",
-          "description": "exceltocsv JARファイルのパス。空の場合は拡張機能の lib/ フォルダのJARを使用します。"
-        },
         "simpleExcelEditor.nullMarkers": {
           "type": "array",
           "items": {
@@ -87,17 +74,6 @@
           ],
           "description": "空文字列として扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [empty] を使用します。"
         },
-        "simpleExcelEditor.encoding": {
-          "type": "string",
-          "enum": [
-            "UTF-8"
-          ],
-          "enumDescriptions": [
-            "UTF-8 (BOMなし)"
-          ],
-          "default": "UTF-8",
-          "description": "CSV変換時の文字エンコーディング。"
-        },
         "simpleExcelEditor.pageSize": {
           "type": "number",
           "default": 200,
@@ -114,11 +90,12 @@
     }
   },
   "scripts": {
+    "build:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --format=cjs --platform=node --external:vscode --target=node20",
     "build:webview": "esbuild media/src/main.ts --bundle --outfile=media/editor.js --format=iife --target=es2020",
-    "compile": "tsc -p tsconfig.build.json && npm run build:webview",
-    "watch": "tsc -watch -p tsconfig.build.json & npm run build:webview -- --watch",
+    "compile": "tsc -p tsconfig.build.json --noEmit && npm run build:ext && npm run build:webview",
+    "watch": "npm run build:ext -- --watch & npm run build:webview -- --watch",
     "test": "mocha",
-    "package": "vsce package --no-dependencies"
+    "package": "npm run compile && vsce package"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.0",
@@ -129,5 +106,8 @@
     "mocha": "^10.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
   }
 }

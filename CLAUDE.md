@@ -5,14 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Compile extension host TypeScript + bundle webview
+# Type-check + bundle extension host + bundle webview
 npm run compile
 
-# Watch mode (use alongside F5 debug launch)
-npm run watch
+# Bundle extension host only (esbuild: src/extension.ts → out/extension.js)
+npm run build:ext
 
 # Bundle webview only (esbuild: media/src/main.ts → media/editor.js)
 npm run build:webview
+
+# Watch mode (use alongside F5 debug launch)
+npm run watch
 
 # Run unit tests (Mocha + ts-node)
 npm test
@@ -25,11 +28,26 @@ There is no linter configured. TypeScript is set to `strict: true`.
 
 ## Architecture
 
-This is a **VSCode Custom Editor extension** for `.xlsx`/`.xls`/`.xlsm`/`.csv`/`table-ordering.txt` files. It renders a spreadsheet UI inside a webview and converts between Excel and CSV using an external Java subprocess.
+This is a **VSCode Custom Editor extension** for `.xlsx`/`.xlsm`/`.csv`/`table-ordering.txt` files. It renders a spreadsheet UI inside a webview and reads/writes Excel files via **ExcelJS** (bundled into the extension — no Java required).
+
+### Build
+
+- **Extension host** (`src/`): TypeScript type-checked by `tsc --noEmit`, then bundled by `esbuild` into `out/extension.js` (CommonJS, Node 20).
+- **Webview** (`media/src/`): Bundled by `esbuild` into `media/editor.js` (IIFE, ES2020).
+- ExcelJS is bundled into `out/extension.js` — `node_modules` are not shipped separately.
+
+### Excel I/O (issue #32)
+
+Excel reading/writing is done through `IExcelIO` interface (`src/excel/IExcelIO.ts`), with `ExcelJsIO` (`src/excel/ExcelJsIO.ts`) as the current implementation.
+
+- **To swap the library**: implement `IExcelIO` in a new class and inject it in `extension.ts`.
+- Supported formats: `.xlsx`, `.xlsm`. `.xls` (old binary) is not supported by ExcelJS.
+- All sheets are loaded eagerly at document open time (`readAllSheets`). No lazy per-sheet loading.
+- On save, `writeWorkbook` writes all cached sheets as a fresh workbook (formatting/formulas are not preserved).
 
 ### Host ↔ Webview Split
 
-The extension host (`src/`) owns file I/O and Excel↔CSV conversion. The webview (`media/src/`) owns all edit state, undo/redo, filtering, and rendering. The host is effectively stateless after initialization — it stores cached sheet data in `ExcelDocument` but defers to the webview for all mutations.
+The extension host (`src/`) owns file I/O and Excel read/write. The webview (`media/src/`) owns all edit state, undo/redo, filtering, and rendering. The host is effectively stateless after initialization — it stores cached sheet data in `ExcelDocument` but defers to the webview for all mutations.
 
 **Messages host → webview:** `init`, `sheetData`, `requestSave`
 - `init` payload includes `allSheetColumns: Record<string, string[]>` (column names for every sheet, for FK navigation)
@@ -39,12 +57,12 @@ The extension host (`src/`) owns file I/O and Excel↔CSV conversion. The webvie
 
 ### Data Flow
 
-1. File open → `ExcelEditorProvider.openCustomDocument()` → `JavaRunner` spawns `exceltocsv` JAR → CSV output → `CsvUtils.parseCsv()` → cached in `ExcelDocument`
-   - `.csv`: JAR不要。`CsvUtils.parseCsv` で直接読み込み。シート名=ファイル名(拡張子なし)
+1. File open → `ExcelEditorProvider.openCustomDocument()` → `ExcelJsIO.readAllSheets()` → all sheet data cached in `ExcelDocument`
+   - `.csv`: `CsvUtils.parseCsv` で直接読み込み。シート名=ファイル名(拡張子なし)
    - `table-ordering.txt`: ファイル内の各行を CSV パスとして読み込み複数シートを構築
 2. Webview boots, sends `ready` → host sends `init` with all sheets
 3. User edits → webview state (`S`) mutates → re-renders from state
-4. Save (Ctrl+S) → host sends `requestSave` → webview replies `saveData` → `JavaRunner` converts CSV → Excel → written to disk
+4. Save (Ctrl+S) → host sends `requestSave` → webview replies `saveData` → `ExcelJsIO.writeWorkbook()` writes xlsx
    - CSV/tableOrdering: 同名 `.xlsx` が存在しない場合のみ保存（存在すれば警告してキャンセル）
    - tableOrdering: 保存先は同じディレクトリの `{フォルダ名}.xlsx`
 5. Undo to initial state → webview sends `revert` → host clears dirty flag
@@ -54,9 +72,9 @@ The extension host (`src/`) owns file I/O and Excel↔CSV conversion. The webvie
 | File | Role |
 |------|------|
 | `src/ExcelEditorProvider.ts` | Custom editor provider; webview lifecycle, message routing, save/revert |
-| `src/ExcelDocument.ts` | Document model; `DocumentKind` ('excel'|'csv'|'tableOrdering'), sheet metadata and per-sheet CSV cache |
-| `src/JavaRunner.ts` | Subprocess wrapper for `exceltocsv` JAR; handles encoding, timeouts, temp files |
-| `src/JavaPathDetector.ts` | Resolves Java binary: VS Code setting → Java extension → `JAVA_HOME` → `PATH` |
+| `src/ExcelDocument.ts` | Document model; `DocumentKind` ('excel'|'csv'|'tableOrdering'), sheet metadata and per-sheet cache |
+| `src/excel/IExcelIO.ts` | Excel I/O interface (listSheets, readAllSheets, readSheet, writeWorkbook) |
+| `src/excel/ExcelJsIO.ts` | ExcelJS implementation of IExcelIO |
 | `src/CsvUtils.ts` | RFC 4180 CSV parser/serializer; column name generation (A–Z, AA–AZ…) |
 | `media/src/main.ts` | Webview entry; message routing, keyboard shortcut wiring |
 | `media/src/state.ts` | Global state object `S` and DOM element refs |
@@ -68,19 +86,14 @@ The extension host (`src/`) owns file I/O and Excel↔CSV conversion. The webvie
 | `media/src/data/operations.ts` | Row/column mutations, filtering, pagination |
 | `media/src/data/utils.ts` | NULL/EMPTY detection, date validation, column stats |
 
-### External Dependency: exceltocsv JAR
-
-All Excel parsing and writing is delegated to `lib/exceltocsv.jar` (not included in this repo — must be built from the sibling Java project and placed there manually). Java 21+ is required at runtime.
-
 ### CSV Direct Open (issue #40)
 
 `ExcelDocument.kind` discriminates between `'excel'`, `'csv'`, and `'tableOrdering'`.
 
-- **CSV**: `openCsvDocument` reads the file directly via `CsvUtils.parseCsv`. On save, the file is converted to `.xlsx` via JAR (new file, no `--update`). If a same-named `.xlsx` already exists, save is cancelled with a warning.
+- **CSV**: `openCsvDocument` reads the file directly via `CsvUtils.parseCsv`. On save, the file is converted to `.xlsx` via `ExcelJsIO.writeWorkbook` (new file). If a same-named `.xlsx` already exists, save is cancelled with a warning.
 - **table-ordering.txt**: `openTableOrderingDocument` reads each line as a CSV filename (relative to the txt file's dir). Lines starting with `#` are ignored. On save, all sheets are written to `{folderName}.xlsx` in the same directory.
 - **CSV追加ボタン**: Toolbar "CSV追加" triggers `importCsv` message → host opens file dialog → CSV is loaded into cache as a new sheet → `sheetAdded` + `sheetData` sent to webview.
 - **Encoding**: UTF-8 only (BOM stripped if present). Shift-JIS support is a future task.
-- `JavaRunner.csvToExcel` accepts `update: boolean` (default `true`). Pass `false` when creating a new xlsx so `--update` is omitted.
 
 ### Sheet Rename / Delete (issue #42)
 
@@ -95,7 +108,7 @@ All Excel parsing and writing is delegated to `lib/exceltocsv.jar` (not included
 
 When a single cell is selected, `fkNav.ts:updateFkButtons` checks `S.allSheetColumns` to find other sheets with the same column name. If found, a "→ [sheet] で参照" button (or dropdown for multiple sheets) appears in the toolbar. Clicking it sets `S.pendingFkHighlight` and calls `requestSwitchSheet`. After `sheetData` arrives, `applyFkHighlight` scans the new sheet's rows, sets `S.fkHighlightRows`, and scrolls to the first match. Making any new selection clears the highlight via `clearFkHighlight`.
 
-`sendInit` now eagerly loads **all** sheets into `doc.cache` so `allSheetColumns` is always complete.
+All sheets are loaded eagerly at open time, so `allSheetColumns` is always complete.
 
 ### NULL / EMPTY Distinction
 
