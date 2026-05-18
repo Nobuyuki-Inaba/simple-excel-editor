@@ -105,6 +105,21 @@ button:disabled {
   color: var(--vscode-descriptionForeground);
 }
 
+#btn-open-settings {
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+  background: transparent;
+  border-color: transparent;
+  color: var(--vscode-descriptionForeground);
+}
+
+#btn-open-settings:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+  border-color: transparent;
+}
+
 /* ── Table area ───────────────────────────────────────────────────────────── */
 #table-wrapper {
   flex: 1;

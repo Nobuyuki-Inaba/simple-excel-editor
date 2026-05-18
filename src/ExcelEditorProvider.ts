@@ -448,6 +448,10 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         break;
       }
 
+      case 'openSettings': {
+        vscode.commands.executeCommand('workbench.action.openSettings', 'simpleExcelEditor');
+        break;
+      }
       case 'importCsv': {
         const uris = await vscode.window.showOpenDialog({
           canSelectMany: true,
@@ -568,6 +572,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     <div class="toolbar-right">
       <span class="hint">NULL: Alt+N ｜ 空文字: Alt+E</span>
       <span id="status-bar">読み込み中...</span>
+      <button id="btn-open-settings" title="拡張機能の設定を開く">⚙</button>
     </div>
   </div>
 

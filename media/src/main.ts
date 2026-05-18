@@ -77,6 +77,10 @@ document.getElementById('btn-import-csv')?.addEventListener('click', () => {
   vscode.postMessage({ type: 'importCsv' });
 });
 
+document.getElementById('btn-open-settings')?.addEventListener('click', () => {
+  vscode.postMessage({ type: 'openSettings' });
+});
+
 ctxCreateSheet.addEventListener('click', () => {
   hideContextMenu();
   const rows = [...S.selectedRows].sort((a, b) => a - b).map(ri => [...(S.rows[ri] ?? [])]);
