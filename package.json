@@ -2,7 +2,7 @@
   "name": "simple-excel-editor",
   "displayName": "Simple Excel Editor",
   "description": "Edit Excel files directly in VSCode with a spreadsheet-like interface",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "nobuyuki-inaba",
   "license": "MIT",
   "repository": {
@@ -86,6 +86,11 @@
           "type": "boolean",
           "default": true,
           "description": "最初の行をヘッダ行として扱います。"
+        },
+        "simpleExcelEditor.enableRowGrouping": {
+          "type": "boolean",
+          "default": true,
+          "description": "行グルーピング機能を有効にします。空白ヘッダ列に [グループ名] 形式の値を入力することで同じ値を持つ行をグループ化できます。"
         }
       }
     }

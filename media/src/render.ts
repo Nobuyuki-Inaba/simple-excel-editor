@@ -2,7 +2,8 @@ import { S, headerRow, tableBody, sheetTabsEl, pageInfo, rowCount, statusBar,
          btnFirst, btnPrev, btnNext, btnLast, requestSwitchSheet } from './state';
 
 import { isNullValue, isEmptyValue, isDateColumn, isDateLike, isValidIsoDate,
-         colLabel, calculateColumnStats, getDisplayRows } from './data/utils';
+         colLabel, calculateColumnStats, getDisplayRows,
+         groupColIndex, groupKeyOf, buildGroupColorMap } from './data/utils';
 
 // ── Registered callbacks (breaks circular deps with edit/cell and selection) ──
 
@@ -163,6 +164,7 @@ export function startSheetRename(tab: HTMLElement, currentName: string): void {
 
 export function renderTable(): void {
   renderHeader();
+  renderGroupFilter();
   renderBody();
 }
 
@@ -176,8 +178,14 @@ export function renderHeader(): void {
 
   S.columns.forEach((col, ci) => {
     const th = document.createElement('th');
-    th.textContent = col || `(${colLabel(ci)})`;
-    th.title = col;
+    if (col === '') {
+      th.textContent = '🏷';
+      th.title = 'グループ列';
+      th.classList.add('group-col-header');
+    } else {
+      th.textContent = col;
+      th.title = col;
+    }
     th.dataset.col = String(ci);
     if (ci === S.selectedCol) th.classList.add('selected-col-header');
     th.addEventListener('click', () => onColClick(ci));
@@ -186,28 +194,92 @@ export function renderHeader(): void {
   });
 }
 
+export function renderGroupFilter(): void {
+  const area = document.getElementById('group-filter-area') as HTMLElement;
+  const sel  = document.getElementById('group-filter')      as HTMLSelectElement;
+  const ci   = groupColIndex();
+
+  if (ci < 0) { area.hidden = true; return; }
+
+  const keys: string[] = [];
+  const counts = new Map<string, number>();
+  for (const row of S.rows) {
+    const key = groupKeyOf(row);
+    if (!key) continue;
+    if (!keys.includes(key)) keys.push(key);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  if (keys.length === 0) { area.hidden = true; return; }
+
+  area.hidden = false;
+  sel.innerHTML = '<option value="">グループ: すべて</option>';
+  for (const key of keys) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = `${key} (${counts.get(key)}件)`;
+    if (S.groupFilter === key) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
 export function renderBody(): void {
   tableBody.innerHTML = '';
+  const ci       = groupColIndex();
+  const colorMap = ci >= 0 ? buildGroupColorMap() : new Map<string, string>();
+  const dataTable = document.getElementById('data-table') as HTMLElement;
+  dataTable.classList.toggle('has-grouping', ci >= 0);
+
   const displayRows = getDisplayRows();
   const offset = S.page * S.pageSize;
-  const slice = displayRows.slice(offset, offset + S.pageSize);
+  const slice  = displayRows.slice(offset, offset + S.pageSize);
+
+  // First occurrence of each group key in the full display list → representative row
+  const firstOccMap = new Map<string, number>();
+  for (const { ri, data } of displayRows) {
+    const key = ci >= 0 ? groupKeyOf(data) : null;
+    if (key && !firstOccMap.has(key)) firstOccMap.set(key, ri);
+  }
 
   slice.forEach(({ data: rowData, ri }) => {
+    const groupKey       = ci >= 0 ? groupKeyOf(rowData) : null;
+    const isRepresentative = groupKey !== null && firstOccMap.get(groupKey) === ri && !S.groupFilter;
+    const isExpanded       = groupKey !== null && S.expandedGroups.has(groupKey);
+
     const tr = document.createElement('tr');
     tr.dataset.row = String(ri);
+    if (groupKey) {
+      const color = colorMap.get(groupKey);
+      if (color) tr.style.background = color;
+    }
     const rowHighlighted = S.selectedRows.size > 0 ? S.selectedRows.has(ri) : ri === S.selectedRow;
     if (rowHighlighted) tr.classList.add('selected-row');
     if (S.fkHighlightRows.has(ri)) tr.classList.add('fk-highlight-row');
 
     const tdNum = document.createElement('td');
     tdNum.className = 'row-num';
-    tdNum.textContent = String(ri + 1);
-    tdNum.addEventListener('click', e => onRowClick(ri, e.shiftKey, e.ctrlKey || e.metaKey));
+    if (isRepresentative) {
+      tdNum.classList.add('group-toggle');
+      tdNum.textContent = (isExpanded ? '▼' : '▶') + ' グループ化';
+      tdNum.addEventListener('click', e => {
+        e.stopPropagation();
+        if (S.expandedGroups.has(groupKey!)) {
+          S.expandedGroups.delete(groupKey!);
+        } else {
+          S.expandedGroups.add(groupKey!);
+        }
+        renderBody();
+        renderPagination();
+      });
+    } else {
+      tdNum.textContent = String(ri + 1);
+      tdNum.addEventListener('click', e => onRowClick(ri, e.shiftKey, e.ctrlKey || e.metaKey));
+    }
     tr.appendChild(tdNum);
 
-    S.columns.forEach((_, ci) => {
-      const value = rowData[ci] ?? '';
-      tr.appendChild(makeCell(ri, ci, value));
+    S.columns.forEach((_, colIdx) => {
+      const value = rowData[colIdx] ?? '';
+      tr.appendChild(makeCell(ri, colIdx, value));
     });
 
     tableBody.appendChild(tr);

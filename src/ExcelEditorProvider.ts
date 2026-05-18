@@ -561,6 +561,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     const pageSize = cfg.get<number>('pageSize', 200);
     const nullMarkers = cfg.get<string[]>('nullMarkers', ['[null]']);
     const emptyMarkers = cfg.get<string[]>('emptyMarkers', ['[empty]']);
+    const enableRowGrouping = cfg.get<boolean>('enableRowGrouping', true);
 
     const data = doc.cache.get(doc.activeSheet) ?? { columns: [], rows: [] };
     const allSheetColumns = this.buildAllSheetColumns(doc);
@@ -574,6 +575,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       pageSize,
       nullMarkers,
       emptyMarkers,
+      enableRowGrouping,
       allSheetColumns,
     });
   }
@@ -628,6 +630,9 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     <div id="filter-area">
       <input type="text" id="filter-input" placeholder="検索..." autocomplete="off" spellcheck="false">
       <button id="btn-filter-clear" title="検索クリア">✕</button>
+    </div>
+    <div id="group-filter-area" hidden>
+      <select id="group-filter" title="グループで絞り込み"></select>
     </div>
     <div id="fk-nav-area" hidden>
       <button id="btn-fk-single" hidden></button>

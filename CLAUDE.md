@@ -115,6 +115,20 @@ The extension host (`src/`) owns file I/O and Excel read/write. The webview (`me
 - **webview → host**: `{ type: 'moveSheet', sheets: string[] }` を送信 → host が `doc.sheets` を更新し `_onChange.fire`。ホストから webview への返却メッセージはなし（webview 側で先に `S.sheets` 更新済み）。
 - **保存反映**: `writeWorkbook(targetPath, doc.sheets, cache, hasHeader)` で `doc.sheets` 順にシートを書き込む。
 
+### Row Grouping (issue #7)
+
+ヘッダ名が空白の列（DBUnit がスキップする列）をグループ列として使用する。
+
+- **グループ列検出**: `groupColIndex()` が `S.columns.indexOf('')` を返す。`S.enableRowGrouping` が false のときは -1 を返して機能全体を無効化。
+- **グループキー**: セル値が `/^\[.+\]$/` にマッチする場合にグループキーとして認識（例: `[正常系]`）。`groupKeyOf(row)` が判定。
+- **アコーディオン表示**: 同一グループキーの先頭行がトグル行（`▶ グループ化` / `▼ グループ化`）。後続行は `S.expandedGroups` に含まれない限り非表示。`getDisplayRows()` が折りたたみを考慮したリストを返す。
+- **背景色**: `buildGroupColorMap()` が先着順で 8 色パレット（`GROUP_COLORS`）を割り当て。`renderBody()` が `tr.style.background` に適用。グループ列を持つシートでは `#data-table.has-grouping` クラスが付与され、行番号列幅が 80px に拡張される。
+- **グループフィルタードロップダウン**: `renderGroupFilter()` が `#group-filter-area` を表示/非表示し、グループキーと件数を `<select>` に列挙。`S.groupFilter` 選択時は一致グループのみ表示（折りたたみなし）。
+- **行追加時のグループ継承**: `addRow()` が選択行のグループ列値を新行にコピー。
+- **セル編集後の即時反映**: `commitActiveEdit()` が値変更時に `renderGroupFilter()` + `renderBody()` を呼び出す（`setCellDisplay()` 単独では色・トグルが更新されないため）。
+- **シート切り替え時リセット**: `S.expandedGroups` / `S.groupFilter` を `init` / `sheetData` / `sheetDeleted` ハンドラで空にリセット。
+- **設定**: `simpleExcelEditor.enableRowGrouping`（boolean, default: true）。`sendInit()` で読み取り webview へ送信。
+
 ### Cross-Sheet FK Navigation (issue #9)
 
 When a single cell is selected, `fkNav.ts:updateFkButtons` checks `S.allSheetColumns` to find other sheets with the same column name. If found, a "→ [sheet] で参照" button (or dropdown for multiple sheets) appears in the toolbar. Clicking it sets `S.pendingFkHighlight` and calls `requestSwitchSheet`. After `sheetData` arrives, `applyFkHighlight` scans the new sheet's rows, sets `S.fkHighlightRows`, and scrolls to the first match. Making any new selection clears the highlight via `clearFkHighlight`.

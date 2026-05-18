@@ -28,6 +28,10 @@ export const S = {
   history:      [] as HistoryEntry[],
   historyIndex: -1,
   dirty:        false,
+  // Row grouping
+  enableRowGrouping: true,
+  expandedGroups: new Set<string>(),
+  groupFilter:    '',
   // FK navigation
   allSheetColumns:    {} as Record<string, string[]>,
   pendingFkHighlight: null as { columnName: string; value: string } | null,

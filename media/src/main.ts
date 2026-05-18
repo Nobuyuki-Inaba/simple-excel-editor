@@ -200,6 +200,7 @@ window.addEventListener('message', event => {
       S.pageSize          = msg.pageSize as number;
       S.nullMarkers       = msg.nullMarkers as string[];
       S.emptyMarkers      = msg.emptyMarkers as string[];
+      S.enableRowGrouping = (msg.enableRowGrouping as boolean) ?? true;
       S.allSheetColumns   = (msg.allSheetColumns as Record<string, string[]>) ?? {};
       S.filterText        = '';
       filterInput.value   = '';
@@ -213,6 +214,8 @@ window.addEventListener('message', event => {
       S.anchorRow         = -1;
       S.fkHighlightRows   = new Set();
       S.pendingFkHighlight = null;
+      S.expandedGroups    = new Set();
+      S.groupFilter       = '';
       S.history       = [{ rows: (msg.rows as string[][]).map(r => [...r]), columns: [...(msg.columns as string[])] }];
       S.historyIndex  = 0;
       render();
@@ -233,6 +236,8 @@ window.addEventListener('message', event => {
       S.selectedRows      = new Set();
       S.anchorRow         = -1;
       S.fkHighlightRows   = new Set();
+      S.expandedGroups    = new Set();
+      S.groupFilter       = '';
       S.history       = [{ rows: (msg.rows as string[][]).map(r => [...r]), columns: [...(msg.columns as string[])] }];
       S.historyIndex  = 0;
       renderSheetTabs();
@@ -281,7 +286,9 @@ window.addEventListener('message', event => {
       S.anchorCell      = null;
       S.selectedRows    = new Set();
       S.anchorRow       = -1;
-      S.fkHighlightRows = new Set();
+      S.fkHighlightRows   = new Set();
+      S.expandedGroups    = new Set();
+      S.groupFilter       = '';
       S.history         = [{ rows: rows.map(r => [...r]), columns: [...columns] }];
       S.historyIndex    = 0;
       render();

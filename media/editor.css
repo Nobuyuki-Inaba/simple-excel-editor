@@ -453,6 +453,52 @@ td.row-num {
   cursor: pointer;
 }
 
+/* ── Row grouping ─────────────────────────────────────────────────────────── */
+#group-filter-area {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#group-filter-area[hidden] {
+  display: none;
+}
+
+#group-filter {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-editorGroup-border));
+  border-radius: 2px;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-family: inherit;
+  max-width: 220px;
+}
+
+th.group-col-header {
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  min-width: 48px;
+  max-width: 48px;
+}
+
+#data-table.has-grouping th.row-num-header,
+#data-table.has-grouping td.row-num {
+  min-width: 80px;
+  max-width: 80px;
+  width: 80px;
+}
+
+td.group-toggle {
+  cursor: pointer;
+  font-size: 10px;
+}
+
+td.group-toggle:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-list-hoverBackground) !important;
+}
+
 /* ── FK navigation ────────────────────────────────────────────────────────── */
 #fk-nav-area {
   display: flex;
