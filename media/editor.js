@@ -149,6 +149,8 @@
   };
   var onSheetTabContextMenu = () => {
   };
+  var onSheetMove = () => {
+  };
   function registerRenderHandlers(handlers) {
     onCellClick = handlers.onCellClick;
     onCellDblClick = handlers.onCellDblClick;
@@ -158,6 +160,7 @@
     onCommitEdit = handlers.onCommitEdit;
     onSheetRename = handlers.onSheetRename;
     onSheetTabContextMenu = handlers.onSheetTabContextMenu;
+    onSheetMove = handlers.onSheetMove;
   }
   function render() {
     renderSheetTabs();
@@ -165,6 +168,7 @@
     renderPagination();
     updateStatus();
   }
+  var dragSrcSheet = "";
   function renderSheetTabs() {
     sheetTabsEl.innerHTML = "";
     S.sheets.forEach((name) => {
@@ -173,6 +177,7 @@
       tab.textContent = name;
       tab.title = name;
       tab.dataset.sheet = name;
+      tab.draggable = true;
       tab.addEventListener("click", () => {
         if (name !== S.activeSheet) {
           onCommitEdit();
@@ -187,6 +192,35 @@
         e.preventDefault();
         e.stopPropagation();
         onSheetTabContextMenu(name, e.clientX, e.clientY);
+      });
+      tab.addEventListener("dragstart", (e) => {
+        dragSrcSheet = name;
+        tab.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      tab.addEventListener("dragend", () => {
+        tab.classList.remove("dragging");
+        sheetTabsEl.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
+      });
+      tab.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (name !== dragSrcSheet) tab.classList.add("drag-over");
+      });
+      tab.addEventListener("dragleave", () => {
+        tab.classList.remove("drag-over");
+      });
+      tab.addEventListener("drop", (e) => {
+        e.preventDefault();
+        tab.classList.remove("drag-over");
+        if (!dragSrcSheet || dragSrcSheet === name) return;
+        const next = [...S.sheets];
+        const from = next.indexOf(dragSrcSheet);
+        const to = next.indexOf(name);
+        if (from < 0 || to < 0) return;
+        next.splice(from, 1);
+        next.splice(to, 0, dragSrcSheet);
+        onSheetMove(next);
       });
       sheetTabsEl.appendChild(tab);
     });
@@ -901,11 +935,19 @@
     onSheetTabContextMenu: (sheetName, x, y) => {
       contextMenuSheetName = sheetName;
       showContextMenu(x, y, "ctx-mode-sheet");
+    },
+    onSheetMove: (newSheets) => {
+      S.sheets = newSheets;
+      markDirty();
+      renderSheetTabs();
+      vscode.postMessage({ type: "moveSheet", sheets: newSheets });
     }
   });
   setupListeners();
   var contextMenu = document.getElementById("context-menu");
   var ctxCreateSheet = document.getElementById("ctx-create-sheet");
+  var ctxMoveLeft = document.getElementById("ctx-move-left");
+  var ctxMoveRight = document.getElementById("ctx-move-right");
   var ctxRenameSheet = document.getElementById("ctx-rename-sheet");
   var ctxDeleteSheet = document.getElementById("ctx-delete-sheet");
   var contextMenuSheetName = "";
@@ -937,10 +979,40 @@
   document.getElementById("btn-import-csv")?.addEventListener("click", () => {
     vscode.postMessage({ type: "importCsv" });
   });
+  document.getElementById("btn-export-csv")?.addEventListener("click", () => {
+    vscode.postMessage({ type: "exportCsv" });
+  });
+  document.getElementById("btn-open-settings")?.addEventListener("click", () => {
+    vscode.postMessage({ type: "openSettings" });
+  });
   ctxCreateSheet.addEventListener("click", () => {
     hideContextMenu();
     const rows = [...S.selectedRows].sort((a, b) => a - b).map((ri) => [...S.rows[ri] ?? []]);
     vscode.postMessage({ type: "createSheet", columns: [...S.columns], rows });
+  });
+  ctxMoveLeft.addEventListener("click", () => {
+    hideContextMenu();
+    const idx = S.sheets.indexOf(contextMenuSheetName);
+    if (idx <= 0) return;
+    const next = [...S.sheets];
+    next.splice(idx, 1);
+    next.splice(idx - 1, 0, contextMenuSheetName);
+    S.sheets = next;
+    markDirty();
+    renderSheetTabs();
+    vscode.postMessage({ type: "moveSheet", sheets: next });
+  });
+  ctxMoveRight.addEventListener("click", () => {
+    hideContextMenu();
+    const idx = S.sheets.indexOf(contextMenuSheetName);
+    if (idx < 0 || idx >= S.sheets.length - 1) return;
+    const next = [...S.sheets];
+    next.splice(idx, 1);
+    next.splice(idx + 1, 0, contextMenuSheetName);
+    S.sheets = next;
+    markDirty();
+    renderSheetTabs();
+    vscode.postMessage({ type: "moveSheet", sheets: next });
   });
   ctxRenameSheet.addEventListener("click", () => {
     hideContextMenu();
