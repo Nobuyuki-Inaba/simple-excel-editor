@@ -4,6 +4,7 @@
   "description": "Edit Excel files directly in VSCode with a spreadsheet-like interface",
   "version": "0.1.0",
   "publisher": "nobuyuki-inaba",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Nobuyuki-Inaba/simple-excel-editor.git"
