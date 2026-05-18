@@ -1,6 +1,6 @@
 # Simple Excel Editor
 
-VSCode 拡張機能 — Excel ファイル (`.xlsx` / `.xls` / `.xlsm`) をエディタ内で直接スプレッドシート形式で編集できます。
+VSCode 拡張機能 — Excel ファイル (`.xlsx` / `.xlsm`) をエディタ内で直接スプレッドシート形式で編集できます。
 Java の DBRider / DBUnit テストデータ作成・編集を主なユースケースとして設計されています。
 
 ![エディタのプレビュー](docs/screenshots/editor-preview.png)
@@ -36,31 +36,18 @@ Java の DBRider / DBUnit テストデータ作成・編集を主なユースケ
 
 ## 必要条件
 
-- Java 21 以上
-- [exceltocsv](https://github.com/Nobuyuki-Inaba/exceltocsv) の fat JAR
+- Node.js（拡張機能開発時のみ）
+- **Java は不要**。Excel の読み書きは [ExcelJS](https://github.com/exceljs/exceljs)（MIT）で行います。
+
+> **注意**: `.xls`（Excel 97-2003 バイナリ形式）は非対応です。`.xlsx` / `.xlsm` を使用してください。
 
 ---
 
 ## セットアップ
 
-### 1. exceltocsv JAR のビルドと配置
-
 ```bash
-git clone https://github.com/Nobuyuki-Inaba/exceltocsv.git
-cd exceltocsv
-mvn package
-cp target/exceltocsv-1.0.0-jar-with-dependencies.jar \
-   ../simple-excel-editor/lib/exceltocsv.jar
-```
-
-### 2. 依存パッケージのインストール
-
-```bash
-cd simple-excel-editor
 npm install
 ```
-
-### 3. デバッグ実行
 
 VSCode でこのフォルダを開き、**F5** を押すと拡張機能開発ホストが起動します。
 
@@ -70,21 +57,10 @@ VSCode でこのフォルダを開き、**F5** を押すと拡張機能開発ホ
 
 | 設定 | デフォルト | 説明 |
 |------|-----------|------|
-| `simpleExcelEditor.javaPath` | `""` | Java 実行ファイルパス（空の場合は自動検出） |
-| `simpleExcelEditor.jarPath` | `""` | exceltocsv JAR パス（空の場合は `lib/exceltocsv.jar`） |
 | `simpleExcelEditor.nullMarkers` | `["[null]"]` | NULL として扱う文字列のリスト |
 | `simpleExcelEditor.emptyMarkers` | `["[empty]"]` | 空文字として扱う文字列のリスト |
 | `simpleExcelEditor.pageSize` | `200` | 1ページに表示する行数 |
 | `simpleExcelEditor.hasHeader` | `true` | 先頭行をヘッダとして扱うか |
-| `simpleExcelEditor.encoding` | `"UTF-8"` | CSV 変換時の文字エンコーディング |
-
-### Java の自動検出順序
-
-1. `simpleExcelEditor.javaPath`（ユーザ手動設定）
-2. `java.jdt.ls.java.home`（Language Support for Java by Red Hat）
-3. `java.home`（Java Extension Pack）
-4. `JAVA_HOME` 環境変数
-5. `java`（PATH フォールバック）
 
 ---
 
@@ -143,16 +119,16 @@ simple-excel-editor/
 ├── src/
 │   ├── extension.ts            # エントリポイント
 │   ├── ExcelEditorProvider.ts  # カスタムエディタ本体
-│   ├── JavaRunner.ts           # exceltocsv JAR 実行
-│   ├── JavaPathDetector.ts     # Java パス自動検出
+│   ├── ExcelDocument.ts        # ドキュメントモデル
 │   ├── CsvUtils.ts             # CSV パース/シリアライズ
+│   ├── excel/
+│   │   ├── IExcelIO.ts         # Excel I/O インターフェース
+│   │   └── ExcelJsIO.ts        # ExcelJS 実装
 │   └── test/
 │       └── CsvUtils.test.ts    # ユニットテスト（Mocha + ts-node）
 ├── media/
-│   ├── editor.js               # Webview UI（Vanilla JS、外部ライブラリなし）
+│   ├── editor.js               # Webview UI（esbuild バンドル済み）
 │   └── editor.css              # スタイル（VS Code テーマ変数対応）
-├── lib/
-│   └── exceltocsv.jar          # 変換エンジン（要配置）
 ├── tsconfig.json               # 共通 TypeScript 設定
 ├── tsconfig.build.json         # ビルド用（テストコードを除外）
 └── tsconfig.test.json          # テスト用（Mocha 型定義を追加）

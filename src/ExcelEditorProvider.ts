@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { JavaRunner } from './JavaRunner';
-import { parseCsv, serializeCsv, generateColumnNames } from './CsvUtils';
+import { parseCsv, generateColumnNames } from './CsvUtils';
 import { ExcelDocument, DocumentKind, SheetData } from './ExcelDocument';
+import { IExcelIO } from './excel/IExcelIO';
 
 // Callback type used to resolve a pending webview-data request
 type WebviewDataResolver = (data: {
@@ -30,16 +30,16 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly runner: JavaRunner
+    private readonly io: IExcelIO
   ) {}
 
   static register(
     context: vscode.ExtensionContext,
-    runner: JavaRunner
+    io: IExcelIO
   ): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       ExcelEditorProvider.viewType,
-      new ExcelEditorProvider(context, runner),
+      new ExcelEditorProvider(context, io),
       {
         webviewOptions: { retainContextWhenHidden: true },
         supportsMultipleEditorsPerDocument: false,
@@ -62,10 +62,14 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       } else if (kind === 'tableOrdering') {
         this.openTableOrderingDocument(doc);
       } else {
-        doc.sheets = await this.runner.listSheets(uri.fsPath);
-        if (doc.sheets.length === 0) throw new Error('シートが見つかりません');
-        doc.activeSheet = doc.sheets[0];
-        doc.cache.set(doc.activeSheet, await this.loadSheet(doc, doc.activeSheet));
+        const hasHeader = this.getHasHeader();
+        const { sheets, data } = await this.io.readAllSheets(uri.fsPath, hasHeader);
+        if (sheets.length === 0) throw new Error('シートが見つかりません');
+        doc.sheets = sheets;
+        doc.activeSheet = sheets[0];
+        for (const [name, sheetData] of data) {
+          doc.cache.set(name, sheetData);
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -104,7 +108,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         );
         throw new Error(`保存キャンセル: ${path.basename(xlsxPath)} が既に存在します`);
       }
-      await this.requestAndSave(document, xlsxPath, true);
+      await this.requestAndSave(document, xlsxPath);
       return;
     }
     await this.requestAndSave(document, document.uri.fsPath);
@@ -115,13 +119,6 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     destination: vscode.Uri,
     _cancellation: vscode.CancellationToken
   ): Promise<void> {
-    if (document.kind === 'csv' || document.kind === 'tableOrdering') {
-      const createNew = !fs.existsSync(destination.fsPath);
-      await this.requestAndSave(document, destination.fsPath, createNew);
-      return;
-    }
-    // Copy the original file first so --update has a base to work on
-    fs.copyFileSync(document.uri.fsPath, destination.fsPath);
     await this.requestAndSave(document, destination.fsPath);
   }
 
@@ -136,13 +133,12 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       } else if (document.kind === 'tableOrdering') {
         this.openTableOrderingDocument(document);
       } else {
-        document.sheets = await this.runner.listSheets(document.uri.fsPath);
-        document.activeSheet = document.sheets[0] ?? '';
-        if (document.activeSheet) {
-          document.cache.set(
-            document.activeSheet,
-            await this.loadSheet(document, document.activeSheet)
-          );
+        const hasHeader = this.getHasHeader();
+        const { sheets, data } = await this.io.readAllSheets(document.uri.fsPath, hasHeader);
+        document.sheets = sheets;
+        document.activeSheet = sheets[0] ?? '';
+        for (const [name, sheetData] of data) {
+          document.cache.set(name, sheetData);
         }
       }
     } catch (err: unknown) {
@@ -159,7 +155,13 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     context: vscode.CustomDocumentBackupContext,
     _token: vscode.CancellationToken
   ): Promise<vscode.CustomDocumentBackup> {
-    fs.copyFileSync(document.uri.fsPath, context.destination.fsPath);
+    if (document.kind === 'excel') {
+      fs.copyFileSync(document.uri.fsPath, context.destination.fsPath);
+    } else {
+      // CSV / tableOrdering: write current cached state as xlsx
+      const hasHeader = this.getHasHeader();
+      await this.io.writeWorkbook(context.destination.fsPath, document.cache, hasHeader);
+    }
     return {
       id: context.destination.toString(),
       delete: () => {
@@ -172,9 +174,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
   /** Read a CSV file from disk into SheetData, stripping BOM if present. */
   private readCsv(filePath: string): SheetData {
-    const hasHeader = vscode.workspace
-      .getConfiguration('simpleExcelEditor')
-      .get<boolean>('hasHeader', true);
+    const hasHeader = this.getHasHeader();
 
     let content = fs.readFileSync(filePath, 'utf-8');
     if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1); // strip UTF-8 BOM
@@ -254,31 +254,10 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     return path.join(dir, `${path.basename(dir)}.xlsx`);
   }
 
-  private async loadSheet(doc: ExcelDocument, sheetName: string): Promise<SheetData> {
-    const hasHeader = vscode.workspace
-      .getConfiguration('simpleExcelEditor')
-      .get<boolean>('hasHeader', true);
-
-    const csvPath = path.join(doc.tmpDir, `${sanitize(sheetName)}.csv`);
-    await this.runner.excelToCsv(doc.uri.fsPath, csvPath, sheetName);
-
-    const content = fs.readFileSync(csvPath, 'utf-8');
-    const allRows = parseCsv(content);
-
-    if (allRows.length === 0) return { columns: [], rows: [] };
-
-    if (hasHeader) {
-      return { columns: allRows[0], rows: allRows.slice(1) };
-    }
-    const colCount = Math.max(...allRows.map(r => r.length));
-    return { columns: generateColumnNames(colCount), rows: allRows };
-  }
-
   /**
    * Ask the webview for its current data, wait for the response, then persist.
-   * createNew=true: first sheet creates the xlsx without --update (new file).
    */
-  private requestAndSave(document: ExcelDocument, targetExcelPath: string, createNew = false): Promise<void> {
+  private requestAndSave(document: ExcelDocument, targetExcelPath: string): Promise<void> {
     const panel = this.panels.get(document.uri.toString());
     if (!panel) return Promise.resolve();
 
@@ -295,11 +274,8 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         this.pendingData.delete(key);
         document.cache.set(sheetName, { columns, rows });
         try {
-          let fileExists = !createNew;
-          for (const [name] of document.cache) {
-            await this.persistSheet(document, name, targetExcelPath, fileExists);
-            fileExists = true; // subsequent sheets always update
-          }
+          const hasHeader = this.getHasHeader();
+          await this.io.writeWorkbook(targetExcelPath, document.cache, hasHeader);
           resolve();
         } catch (err: unknown) {
           reject(err);
@@ -308,26 +284,6 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
       panel.webview.postMessage({ type: 'requestSave' });
     });
-  }
-
-  private async persistSheet(
-    doc: ExcelDocument,
-    sheetName: string,
-    targetExcelPath: string,
-    update = true
-  ): Promise<void> {
-    const hasHeader = vscode.workspace
-      .getConfiguration('simpleExcelEditor')
-      .get<boolean>('hasHeader', true);
-
-    const data = doc.cache.get(sheetName);
-    if (!data) return;
-
-    const allRows = hasHeader ? [data.columns, ...data.rows] : data.rows;
-    const csvContent = serializeCsv(allRows);
-    const csvPath = path.join(doc.tmpDir, `${sanitize(sheetName)}_save.csv`);
-    fs.writeFileSync(csvPath, csvContent, 'utf-8');
-    await this.runner.csvToExcel(csvPath, targetExcelPath, sheetName, update);
   }
 
   private async handleMessage(
@@ -358,7 +314,9 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         }
         if (!doc.cache.has(sheetName)) {
           try {
-            doc.cache.set(sheetName, await this.loadSheet(doc, sheetName));
+            // Fallback: should not occur since all sheets are loaded eagerly
+            const hasHeader = this.getHasHeader();
+            doc.cache.set(sheetName, await this.io.readSheet(doc.uri.fsPath, sheetName, hasHeader));
           } catch (err: unknown) {
             const m = err instanceof Error ? err.message : String(err);
             panel.webview.postMessage({ type: 'error', message: m });
@@ -468,7 +426,8 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         doc.activeSheet = newActive;
         if (!doc.cache.has(newActive)) {
           try {
-            doc.cache.set(newActive, await this.loadSheet(doc, newActive));
+            const hasHeader = this.getHasHeader();
+            doc.cache.set(newActive, await this.io.readSheet(doc.uri.fsPath, newActive, hasHeader));
           } catch (err: unknown) {
             const m = err instanceof Error ? err.message : String(err);
             panel.webview.postMessage({ type: 'error', message: m });
@@ -535,18 +494,6 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     const nullMarkers = cfg.get<string[]>('nullMarkers', ['[null]']);
     const emptyMarkers = cfg.get<string[]>('emptyMarkers', ['[empty]']);
 
-    // Eagerly load all sheets so FK navigation can resolve column names.
-    // For CSV/tableOrdering, cache is already populated — this loop is a no-op.
-    for (const sheetName of doc.sheets) {
-      if (!doc.cache.has(sheetName)) {
-        try {
-          doc.cache.set(sheetName, await this.loadSheet(doc, sheetName));
-        } catch {
-          // Non-fatal: sheet will be missing from allSheetColumns
-        }
-      }
-    }
-
     const data = doc.cache.get(doc.activeSheet) ?? { columns: [], rows: [] };
     const allSheetColumns = this.buildAllSheetColumns(doc);
 
@@ -569,6 +516,12 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       result[name] = data.columns;
     }
     return result;
+  }
+
+  private getHasHeader(): boolean {
+    return vscode.workspace
+      .getConfiguration('simpleExcelEditor')
+      .get<boolean>('hasHeader', true);
   }
 
   // ── Webview HTML ────────────────────────────────────────────────────────────
@@ -652,10 +605,6 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
-
-function sanitize(name: string): string {
-  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
-}
 
 function detectKind(uri: vscode.Uri): DocumentKind {
   if (path.basename(uri.fsPath) === 'table-ordering.txt') return 'tableOrdering';
