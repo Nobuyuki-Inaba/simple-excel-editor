@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { parseCsv, generateColumnNames } from './CsvUtils';
+import { parseCsv, serializeCsv, generateColumnNames } from './CsvUtils';
 import { ExcelDocument, DocumentKind, SheetData } from './ExcelDocument';
 import { IExcelIO } from './excel/IExcelIO';
 
@@ -458,6 +458,64 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         this._onChange.fire({ document: doc });
         break;
       }
+      case 'exportCsv': {
+        const dirs = await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          canSelectFiles: false,
+          canSelectFolders: true,
+          openLabel: 'ここに出力',
+        });
+        if (!dirs || dirs.length === 0) break;
+        const outDir = dirs[0].fsPath;
+
+        // 事前チェック: 全シートの CSV が既存ファイルと重複しないか確認
+        const conflicts = doc.sheets.filter(name =>
+          fs.existsSync(path.join(outDir, `${name}.csv`))
+        );
+        if (conflicts.length > 0) {
+          vscode.window.showErrorMessage(
+            `CSV出力をキャンセルしました。以下のファイルが既に存在します: ${conflicts.map(n => `${n}.csv`).join(', ')}`
+          );
+          break;
+        }
+
+        // 各シートを CSV として書き出し
+        const cfg = vscode.workspace.getConfiguration('simpleExcelEditor');
+        const hasHeader = cfg.get<boolean>('hasHeader', true);
+        const failedSheets: string[] = [];
+        const succeededSheets: string[] = [];
+
+        for (const sheetName of doc.sheets) {
+          const data = doc.cache.get(sheetName);
+          if (!data) continue;
+          const csvPath = path.join(outDir, `${sheetName}.csv`);
+          try {
+            const allRows = hasHeader ? [data.columns, ...data.rows] : data.rows;
+            fs.writeFileSync(csvPath, serializeCsv(allRows), { encoding: 'utf8' });
+            succeededSheets.push(sheetName);
+          } catch {
+            failedSheets.push(sheetName);
+          }
+        }
+
+        // table-ordering.txt を生成（成功シートのみ）
+        if (succeededSheets.length > 0) {
+          const txtPath = path.join(outDir, 'table-ordering.txt');
+          const txtContent = succeededSheets.map(n => `${n}.csv`).join('\n') + '\n';
+          fs.writeFileSync(txtPath, txtContent, { encoding: 'utf8' });
+        }
+
+        if (failedSheets.length > 0) {
+          vscode.window.showWarningMessage(
+            `CSV出力が完了しましたが、以下のシートでエラーが発生しました: ${failedSheets.map(n => `${n}.csv`).join(', ')}`
+          );
+        } else {
+          vscode.window.showInformationMessage(
+            `CSV出力が完了しました（${succeededSheets.length}シート）。`
+          );
+        }
+        break;
+      }
       case 'importCsv': {
         const uris = await vscode.window.showOpenDialog({
           canSelectMany: true,
@@ -565,6 +623,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       <button id="btn-add-col"    title="選択列の右に列を追加">＋ 列</button>
       <button id="btn-delete-col" title="選択列を削除">－ 列</button>
       <button id="btn-import-csv" title="CSVファイルをシートとして追加">CSV追加</button>
+      <button id="btn-export-csv" title="全シートをCSVファイルとして出力">CSV出力</button>
     </div>
     <div id="filter-area">
       <input type="text" id="filter-input" placeholder="検索..." autocomplete="off" spellcheck="false">

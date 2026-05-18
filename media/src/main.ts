@@ -85,6 +85,10 @@ document.getElementById('btn-import-csv')?.addEventListener('click', () => {
   vscode.postMessage({ type: 'importCsv' });
 });
 
+document.getElementById('btn-export-csv')?.addEventListener('click', () => {
+  vscode.postMessage({ type: 'exportCsv' });
+});
+
 document.getElementById('btn-open-settings')?.addEventListener('click', () => {
   vscode.postMessage({ type: 'openSettings' });
 });
