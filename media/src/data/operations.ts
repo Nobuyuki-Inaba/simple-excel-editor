@@ -1,16 +1,26 @@
 import { S, markDirty, filterInput, btnFirst, btnPrev, btnNext, btnLast,
          btnAddRow, btnDelRow, btnDupRow, btnAddCol, btnDelCol, btnFilterClear } from '../state';
-import { renderBody, renderTable, renderPagination } from '../render';
-import { totalPages } from './utils';
+import { renderBody, renderTable, renderPagination, renderGroupFilter } from '../render';
+import { totalPages, groupColIndex, groupKeyOf } from './utils';
 import { snapshot, commitActiveEdit } from '../edit/cell';
 
 export function addRow(): void {
   commitActiveEdit();
   snapshot();
   const insertAt = S.selectedRow >= 0 ? S.selectedRow + 1 : S.rows.length;
-  S.rows.splice(insertAt, 0, new Array(S.columns.length).fill(''));
+  const newRow = new Array(S.columns.length).fill('');
+  // Inherit group value from selected row
+  if (S.selectedRow >= 0) {
+    const ci = groupColIndex();
+    if (ci >= 0) {
+      const key = groupKeyOf(S.rows[S.selectedRow]);
+      if (key) newRow[ci] = key;
+    }
+  }
+  S.rows.splice(insertAt, 0, newRow);
   S.selectedRow = insertAt;
   markDirty();
+  renderGroupFilter();
   renderBody();
   renderPagination();
 }
@@ -128,5 +138,13 @@ export function setupListeners(): void {
     renderBody();
     renderPagination();
     filterInput.focus();
+  });
+
+  document.getElementById('group-filter')?.addEventListener('change', e => {
+    S.groupFilter = (e.target as HTMLSelectElement).value;
+    S.page = 0;
+    S.selectedRow = -1;
+    renderBody();
+    renderPagination();
   });
 }

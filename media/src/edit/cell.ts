@@ -1,5 +1,5 @@
 import { S, HISTORY_LIMIT, HistoryEntry, vscode, markDirty, tableBody } from '../state';
-import { renderTable, renderBody, renderPagination, setCellDisplay, updateStatus } from '../render';
+import { renderTable, renderBody, renderPagination, renderGroupFilter, setCellDisplay, updateStatus } from '../render';
 import { selectCell } from '../selection';
 import { primaryNullMarker, primaryEmptyMarker, colLabel } from '../data/utils';
 
@@ -180,8 +180,9 @@ export function commitActiveEdit(): void {
   while (S.rows[ri].length <= ci) S.rows[ri].push('');
   S.rows[ri][ci] = newValue;
 
-  setCellDisplay(td, newValue, S.columns[ci] ?? '');
   markDirty();
+  renderGroupFilter();
+  renderBody();
 }
 
 function cancelActiveEdit(): void {

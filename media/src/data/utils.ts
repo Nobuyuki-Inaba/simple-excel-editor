@@ -1,5 +1,43 @@
 import { S } from '../state';
 
+// ── Row grouping helpers ─────────────────────────────────────────────────────
+
+const GROUP_COLORS = [
+  'color-mix(in srgb, #4fc3f7 22%, transparent)',
+  'color-mix(in srgb, #81c784 22%, transparent)',
+  'color-mix(in srgb, #ffb74d 22%, transparent)',
+  'color-mix(in srgb, #e57373 22%, transparent)',
+  'color-mix(in srgb, #ba68c8 22%, transparent)',
+  'color-mix(in srgb, #4db6ac 22%, transparent)',
+  'color-mix(in srgb, #f06292 22%, transparent)',
+  'color-mix(in srgb, #aed581 22%, transparent)',
+];
+
+export function groupColIndex(): number {
+  if (!S.enableRowGrouping) return -1;
+  return S.columns.indexOf('');
+}
+
+export function groupKeyOf(row: string[]): string | null {
+  const ci = groupColIndex();
+  if (ci < 0) return null;
+  const val = (row[ci] ?? '').trim();
+  return /^\[.+\]$/.test(val) ? val : null;
+}
+
+export function buildGroupColorMap(): Map<string, string> {
+  const map = new Map<string, string>();
+  let idx = 0;
+  for (const row of S.rows) {
+    const key = groupKeyOf(row);
+    if (key && !map.has(key)) {
+      map.set(key, GROUP_COLORS[idx % GROUP_COLORS.length]);
+      idx++;
+    }
+  }
+  return map;
+}
+
 export function isNullValue(v: string): boolean {
   return S.nullMarkers.includes(v);
 }
@@ -71,14 +109,28 @@ export function calculateColumnStats(ci: number): ColumnStats {
 }
 
 export function getDisplayRows(): { data: string[]; ri: number }[] {
-  if (!S.filterText) return S.rows.map((data, ri) => ({ data, ri }));
+  const ci = groupColIndex();
   const query = S.filterText.toLowerCase();
-  const result: { data: string[]; ri: number }[] = [];
+
+  let result: { data: string[]; ri: number }[] = [];
   for (let ri = 0; ri < S.rows.length; ri++) {
-    if (S.rows[ri].some(cell => (cell ?? '').toLowerCase().includes(query))) {
-      result.push({ data: S.rows[ri], ri });
-    }
+    const row = S.rows[ri];
+    if (query && !row.some(cell => (cell ?? '').toLowerCase().includes(query))) continue;
+    if (S.groupFilter && groupKeyOf(row) !== S.groupFilter) continue;
+    result.push({ data: row, ri });
   }
+
+  // Collapse non-representative rows when no group dropdown filter is active
+  if (ci >= 0 && !S.groupFilter) {
+    const seen = new Set<string>();
+    result = result.filter(({ data }) => {
+      const key = groupKeyOf(data);
+      if (!key) return true;
+      if (!seen.has(key)) { seen.add(key); return true; }
+      return S.expandedGroups.has(key);
+    });
+  }
+
   return result;
 }
 

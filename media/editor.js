@@ -22,6 +22,10 @@
     history: [],
     historyIndex: -1,
     dirty: false,
+    // Row grouping
+    enableRowGrouping: true,
+    expandedGroups: /* @__PURE__ */ new Set(),
+    groupFilter: "",
     // FK navigation
     allSheetColumns: {},
     pendingFkHighlight: null,
@@ -68,6 +72,38 @@
   }
 
   // media/src/data/utils.ts
+  var GROUP_COLORS = [
+    "color-mix(in srgb, #4fc3f7 22%, transparent)",
+    "color-mix(in srgb, #81c784 22%, transparent)",
+    "color-mix(in srgb, #ffb74d 22%, transparent)",
+    "color-mix(in srgb, #e57373 22%, transparent)",
+    "color-mix(in srgb, #ba68c8 22%, transparent)",
+    "color-mix(in srgb, #4db6ac 22%, transparent)",
+    "color-mix(in srgb, #f06292 22%, transparent)",
+    "color-mix(in srgb, #aed581 22%, transparent)"
+  ];
+  function groupColIndex() {
+    if (!S.enableRowGrouping) return -1;
+    return S.columns.indexOf("");
+  }
+  function groupKeyOf(row) {
+    const ci = groupColIndex();
+    if (ci < 0) return null;
+    const val = (row[ci] ?? "").trim();
+    return /^\[.+\]$/.test(val) ? val : null;
+  }
+  function buildGroupColorMap() {
+    const map = /* @__PURE__ */ new Map();
+    let idx = 0;
+    for (const row of S.rows) {
+      const key = groupKeyOf(row);
+      if (key && !map.has(key)) {
+        map.set(key, GROUP_COLORS[idx % GROUP_COLORS.length]);
+        idx++;
+      }
+    }
+    return map;
+  }
   function isNullValue(v) {
     return S.nullMarkers.includes(v);
   }
@@ -118,13 +154,26 @@
     return { total, nullCount, emptyCount, uniqueCount: uniqueValues.size, dupValues, dupCount };
   }
   function getDisplayRows() {
-    if (!S.filterText) return S.rows.map((data, ri) => ({ data, ri }));
+    const ci = groupColIndex();
     const query = S.filterText.toLowerCase();
-    const result = [];
+    let result = [];
     for (let ri = 0; ri < S.rows.length; ri++) {
-      if (S.rows[ri].some((cell) => (cell ?? "").toLowerCase().includes(query))) {
-        result.push({ data: S.rows[ri], ri });
-      }
+      const row = S.rows[ri];
+      if (query && !row.some((cell) => (cell ?? "").toLowerCase().includes(query))) continue;
+      if (S.groupFilter && groupKeyOf(row) !== S.groupFilter) continue;
+      result.push({ data: row, ri });
+    }
+    if (ci >= 0 && !S.groupFilter) {
+      const seen = /* @__PURE__ */ new Set();
+      result = result.filter(({ data }) => {
+        const key = groupKeyOf(data);
+        if (!key) return true;
+        if (!seen.has(key)) {
+          seen.add(key);
+          return true;
+        }
+        return S.expandedGroups.has(key);
+      });
     }
     return result;
   }
@@ -270,6 +319,7 @@
   }
   function renderTable() {
     renderHeader();
+    renderGroupFilter();
     renderBody();
   }
   function renderHeader() {
@@ -280,8 +330,14 @@
     headerRow.appendChild(thNum);
     S.columns.forEach((col, ci) => {
       const th = document.createElement("th");
-      th.textContent = col || `(${colLabel(ci)})`;
-      th.title = col;
+      if (col === "") {
+        th.textContent = "\u{1F3F7}";
+        th.title = "\u30B0\u30EB\u30FC\u30D7\u5217";
+        th.classList.add("group-col-header");
+      } else {
+        th.textContent = col;
+        th.title = col;
+      }
       th.dataset.col = String(ci);
       if (ci === S.selectedCol) th.classList.add("selected-col-header");
       th.addEventListener("click", () => onColClick(ci));
@@ -289,25 +345,86 @@
       headerRow.appendChild(th);
     });
   }
+  function renderGroupFilter() {
+    const area = document.getElementById("group-filter-area");
+    const sel = document.getElementById("group-filter");
+    const ci = groupColIndex();
+    if (ci < 0) {
+      area.hidden = true;
+      return;
+    }
+    const keys = [];
+    const counts = /* @__PURE__ */ new Map();
+    for (const row of S.rows) {
+      const key = groupKeyOf(row);
+      if (!key) continue;
+      if (!keys.includes(key)) keys.push(key);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    if (keys.length === 0) {
+      area.hidden = true;
+      return;
+    }
+    area.hidden = false;
+    sel.innerHTML = '<option value="">\u30B0\u30EB\u30FC\u30D7: \u3059\u3079\u3066</option>';
+    for (const key of keys) {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = `${key} (${counts.get(key)}\u4EF6)`;
+      if (S.groupFilter === key) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
   function renderBody() {
     tableBody.innerHTML = "";
+    const ci = groupColIndex();
+    const colorMap = ci >= 0 ? buildGroupColorMap() : /* @__PURE__ */ new Map();
+    const dataTable = document.getElementById("data-table");
+    dataTable.classList.toggle("has-grouping", ci >= 0);
     const displayRows = getDisplayRows();
     const offset = S.page * S.pageSize;
     const slice = displayRows.slice(offset, offset + S.pageSize);
+    const firstOccMap = /* @__PURE__ */ new Map();
+    for (const { ri, data } of displayRows) {
+      const key = ci >= 0 ? groupKeyOf(data) : null;
+      if (key && !firstOccMap.has(key)) firstOccMap.set(key, ri);
+    }
     slice.forEach(({ data: rowData, ri }) => {
+      const groupKey = ci >= 0 ? groupKeyOf(rowData) : null;
+      const isRepresentative = groupKey !== null && firstOccMap.get(groupKey) === ri && !S.groupFilter;
+      const isExpanded = groupKey !== null && S.expandedGroups.has(groupKey);
       const tr = document.createElement("tr");
       tr.dataset.row = String(ri);
+      if (groupKey) {
+        const color = colorMap.get(groupKey);
+        if (color) tr.style.background = color;
+      }
       const rowHighlighted = S.selectedRows.size > 0 ? S.selectedRows.has(ri) : ri === S.selectedRow;
       if (rowHighlighted) tr.classList.add("selected-row");
       if (S.fkHighlightRows.has(ri)) tr.classList.add("fk-highlight-row");
       const tdNum = document.createElement("td");
       tdNum.className = "row-num";
-      tdNum.textContent = String(ri + 1);
-      tdNum.addEventListener("click", (e) => onRowClick(ri, e.shiftKey, e.ctrlKey || e.metaKey));
+      if (isRepresentative) {
+        tdNum.classList.add("group-toggle");
+        tdNum.textContent = (isExpanded ? "\u25BC" : "\u25B6") + " \u30B0\u30EB\u30FC\u30D7\u5316";
+        tdNum.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (S.expandedGroups.has(groupKey)) {
+            S.expandedGroups.delete(groupKey);
+          } else {
+            S.expandedGroups.add(groupKey);
+          }
+          renderBody();
+          renderPagination();
+        });
+      } else {
+        tdNum.textContent = String(ri + 1);
+        tdNum.addEventListener("click", (e) => onRowClick(ri, e.shiftKey, e.ctrlKey || e.metaKey));
+      }
       tr.appendChild(tdNum);
-      S.columns.forEach((_, ci) => {
-        const value = rowData[ci] ?? "";
-        tr.appendChild(makeCell(ri, ci, value));
+      S.columns.forEach((_, colIdx) => {
+        const value = rowData[colIdx] ?? "";
+        tr.appendChild(makeCell(ri, colIdx, value));
       });
       tableBody.appendChild(tr);
     });
@@ -737,8 +854,9 @@
     while (S.rows.length <= ri) S.rows.push([]);
     while (S.rows[ri].length <= ci) S.rows[ri].push("");
     S.rows[ri][ci] = newValue;
-    setCellDisplay(td, newValue, S.columns[ci] ?? "");
     markDirty();
+    renderGroupFilter();
+    renderBody();
   }
   function cancelActiveEdit() {
     if (!activeEdit) return;
@@ -806,9 +924,18 @@
     commitActiveEdit();
     snapshot();
     const insertAt = S.selectedRow >= 0 ? S.selectedRow + 1 : S.rows.length;
-    S.rows.splice(insertAt, 0, new Array(S.columns.length).fill(""));
+    const newRow = new Array(S.columns.length).fill("");
+    if (S.selectedRow >= 0) {
+      const ci = groupColIndex();
+      if (ci >= 0) {
+        const key = groupKeyOf(S.rows[S.selectedRow]);
+        if (key) newRow[ci] = key;
+      }
+    }
+    S.rows.splice(insertAt, 0, newRow);
     S.selectedRow = insertAt;
     markDirty();
+    renderGroupFilter();
     renderBody();
     renderPagination();
   }
@@ -912,6 +1039,13 @@
       renderBody();
       renderPagination();
       filterInput.focus();
+    });
+    document.getElementById("group-filter")?.addEventListener("change", (e) => {
+      S.groupFilter = e.target.value;
+      S.page = 0;
+      S.selectedRow = -1;
+      renderBody();
+      renderPagination();
     });
   }
 
@@ -1079,6 +1213,7 @@
         S.pageSize = msg.pageSize;
         S.nullMarkers = msg.nullMarkers;
         S.emptyMarkers = msg.emptyMarkers;
+        S.enableRowGrouping = msg.enableRowGrouping ?? true;
         S.allSheetColumns = msg.allSheetColumns ?? {};
         S.filterText = "";
         filterInput.value = "";
@@ -1092,6 +1227,8 @@
         S.anchorRow = -1;
         S.fkHighlightRows = /* @__PURE__ */ new Set();
         S.pendingFkHighlight = null;
+        S.expandedGroups = /* @__PURE__ */ new Set();
+        S.groupFilter = "";
         S.history = [{ rows: msg.rows.map((r) => [...r]), columns: [...msg.columns] }];
         S.historyIndex = 0;
         render();
@@ -1111,6 +1248,8 @@
         S.selectedRows = /* @__PURE__ */ new Set();
         S.anchorRow = -1;
         S.fkHighlightRows = /* @__PURE__ */ new Set();
+        S.expandedGroups = /* @__PURE__ */ new Set();
+        S.groupFilter = "";
         S.history = [{ rows: msg.rows.map((r) => [...r]), columns: [...msg.columns] }];
         S.historyIndex = 0;
         renderSheetTabs();
@@ -1150,6 +1289,8 @@
         S.selectedRows = /* @__PURE__ */ new Set();
         S.anchorRow = -1;
         S.fkHighlightRows = /* @__PURE__ */ new Set();
+        S.expandedGroups = /* @__PURE__ */ new Set();
+        S.groupFilter = "";
         S.history = [{ rows: rows.map((r) => [...r]), columns: [...columns] }];
         S.historyIndex = 0;
         render();
