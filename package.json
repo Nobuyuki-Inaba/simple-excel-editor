@@ -4,6 +4,7 @@
   "description": "Edit Excel files directly in VSCode with a spreadsheet-like interface",
   "version": "0.1.0",
   "publisher": "nobuyuki-inaba",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Nobuyuki-Inaba/simple-excel-editor.git"
@@ -90,7 +91,7 @@
     }
   },
   "scripts": {
-    "build:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --format=cjs --platform=node --external:vscode --target=node20",
+    "build:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --format=cjs --platform=node --external:vscode --target=node20 --legal-comments=inline",
     "build:webview": "esbuild media/src/main.ts --bundle --outfile=media/editor.js --format=iife --target=es2020",
     "compile": "tsc -p tsconfig.build.json --noEmit && npm run build:ext && npm run build:webview",
     "watch": "npm run build:ext -- --watch & npm run build:webview -- --watch",
