@@ -1,12 +1,25 @@
+# Development tools and config
 .vscode/**
 .vscode-test/**
-src/**
+.claude/**
 .gitignore
-**/tsconfig.json
-**/*.map
-**/*.ts
-node_modules/**
-out/**/*.map
-media/src/**
-.mocharc.js
 .gitattributes
+.mocharc.js
+CLAUDE.md
+
+# TypeScript source and configs
+src/**
+media/src/**
+**/*.ts
+**/tsconfig*.json
+
+# Build artifacts — keep only the bundled extension
+out/**
+!out/extension.js
+**/*.map
+
+# Node modules (bundled into out/extension.js by esbuild)
+node_modules/**
+
+# Package management
+package-lock.json
