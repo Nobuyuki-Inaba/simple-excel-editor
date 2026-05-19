@@ -1,152 +1,211 @@
 # Simple Excel Editor
 
-VSCode 拡張機能 — Excel ファイル (`.xlsx` / `.xlsm`) をエディタ内で直接スプレッドシート形式で編集できます。
-Java の DBRider / DBUnit テストデータ作成・編集を主なユースケースとして設計されています。
+A VS Code extension for editing Excel files (`.xlsx` / `.xlsm`) as a spreadsheet directly inside the editor.
+Designed primarily for creating and editing test data for Java-based DBRider / DBUnit workflows.
 
-![エディタのプレビュー](docs/screenshots/editor-preview.png)
-
----
-
-## 機能
-
-| 機能 | 詳細 |
-|------|------|
-| 表形式編集 | セルをダブルクリックして直接編集 |
-| ヘッダ名編集 | ヘッダセルをダブルクリックして列名を変更 |
-| マルチシート | 画面下部のタブでシートを切り替え |
-| シート作成 | 行を選択して右クリック→「選択行でシートを作成」 |
-| シートリネーム | タブをダブルクリック、または右クリック→「シート名を変更...」でインライン編集 |
-| シート削除 | タブを右クリック→「シートを削除」（確認ダイアログあり、1枚の場合は削除不可） |
-| シート並び替え | タブをドラッグ&ドロップ、または右クリック→「← 左へ移動」「右へ移動 →」で並び替え。保存時に Excel のシート順に反映 |
-| CSV 直接開く | `.csv` ファイルを直接エディタで開いて編集・保存 |
-| CSV 追加 | ツールバー「CSV追加」ボタンで既存ファイルに CSV シートを追加 |
-| CSV 出力 | ツールバー「CSV出力」ボタンで全シートを CSV ファイルとして一括エクスポート。同名ファイルが存在する場合は事前チェックでキャンセル。出力後に `table-ordering.txt` を自動生成 |
-| table-ordering.txt | 複数 CSV ファイルのパスを並べた `table-ordering.txt` を一括でマルチシート表示 |
-| 行グルーピング | ヘッダ名が空白の列に `[グループ名]` 形式の値を入力するとグループ化。▶ グループ化 / ▼ グループ化 トグルでアコーディオン展開。同一グループは同じ背景色で識別。ツールバーのドロップダウンでグループ絞り込み可能 |
-| クロスシート FK ナビ | 同名カラムを持つ他シートへのジャンプボタンをツールバーに自動表示 |
-| NULL / 空文字区別 | NULL（赤背景）と空文字（青緑背景）を色で区別して表示・編集 |
-| 検索・フィルタ | ツールバーの検索ボックスで行をリアルタイム絞り込み |
-| 列統計情報 | 列を選択するとステータスバーに件数・NULL数・空文字数・ユニーク数を表示 |
-| 日付バリデーション | 日付系カラムに ISO 形式以外の値が入っていると警告表示（薄赤背景） |
-| 行・列の追加/削除 | ツールバーボタンで操作 |
-| 行複製 | 選択行を直下に複製（`Ctrl+D`） |
-| ページネーション | 大量行を一定件数ずつ表示（フィルタ時は一致件数を表示） |
-| 横スクロール・行番号固定 | 列数が多い場合も行番号列（#）が左に固定され、横スクロール可能 |
-| ソート | 列ヘッダクリックで昇順/降順ソート |
-| 設定 | ツールバー右端の ⚙ ボタン、またはコマンドパレット「Simple Excel Editor: 設定を開く」で設定画面を開く |
-| 保存 | `Ctrl+S` で Excel ファイルに書き戻し |
+![Editor Preview](docs/screenshots/editor-preview.png)
 
 ---
 
-## 必要条件
+## Features
 
-- Node.js（拡張機能開発時のみ）
-- **Java は不要**。Excel の読み書きは [ExcelJS](https://github.com/exceljs/exceljs)（MIT）で行います。
+### Cell Editing
 
-> **注意**: `.xls`（Excel 97-2003 バイナリ形式）は非対応です。`.xlsx` / `.xlsm` を使用してください。
+Double-click any cell to enter edit mode. Press **Enter** to commit, **Escape** to cancel, or **Tab** / **Shift+Tab** to move to the next/previous cell.
+
+### Header Editing
+
+Double-click a header cell to rename the column name inline.
+
+### Multi-sheet Support
+
+Click the sheet tabs at the bottom of the editor to switch between sheets.
+
+### Row & Column Operations
+
+Use the toolbar buttons to add or delete rows and columns.  
+To **duplicate** a selected row, press **Ctrl+D** — the row is inserted immediately below.
+
+### Sorting
+
+Click a column header to sort rows in ascending order. Click again to toggle to descending order.
+
+### Search / Filter
+
+Type in the search box on the toolbar to filter rows in real time. The status bar shows how many rows match.
+
+### Pagination
+
+Rows are displayed in pages (default: 200 rows per page). Use the **◀ Prev** / **Next ▶** buttons to navigate.  
+The page size can be changed in [Settings](#settings).
+
+### Sheet Management
+
+| Operation | How to perform |
+|-----------|---------------|
+| Create sheet from rows | Select rows → right-click → **"Create sheet from selected rows"** |
+| Rename sheet | Double-click the tab, or right-click → **"Rename sheet..."** — edit inline, press Enter to confirm or Escape to cancel |
+| Delete sheet | Right-click the tab → **"Delete sheet"** (confirmation dialog shown; cannot delete if only one sheet remains) |
+| Reorder sheets | Drag and drop a tab to a new position, or right-click → **"← Move left"** / **"Move right →"** |
+
+Sheet order is reflected in the saved Excel file.
+
+### CSV Support
+
+| Operation | How to perform |
+|-----------|---------------|
+| Open CSV directly | Open any `.csv` file with VS Code — it opens in this editor automatically |
+| Import CSV as a new sheet | Click **"Add CSV"** on the toolbar → select a file |
+| Export all sheets to CSV | Click **"Export CSV"** on the toolbar → choose an output folder. A `table-ordering.txt` is generated automatically. If any `{sheet}.csv` already exists in the folder, the export is cancelled before writing. |
+
+### table-ordering.txt
+
+Create a plain text file named `table-ordering.txt` where each line is a relative path to a CSV file.  
+Opening this file in VS Code loads all the listed CSV files as individual sheets in a single multi-sheet view.  
+Lines starting with `#` are treated as comments and ignored.
+
+### Row Grouping
+
+Rows can be grouped using a column whose header is **blank** (an empty column name).  
+Enter a value in the format `[GroupName]` (e.g. `[Happy path]`) in that column to mark the row as a group header.
+
+- Click the **▶ Grouped** toggle in that row to expand or collapse all rows belonging to that group.
+- Each group is highlighted with a distinct background color.
+- Use the **Group filter** dropdown in the toolbar to show only a specific group.
+- When adding a new row, the group column value is automatically copied from the selected row.
+
+Enable or disable this feature with `simpleExcelEditor.enableRowGrouping` in [Settings](#settings).
+
+### Cross-Sheet FK Navigation
+
+When a single cell is selected, the toolbar automatically shows a **"→ [SheetName] で参照"** button if another sheet has a column with the same name.  
+Clicking the button switches to that sheet and highlights all rows where the column value matches the selected cell.
+
+If multiple sheets have a matching column, a dropdown button appears instead.  
+Selecting any new cell clears the highlight.
+
+### NULL / EMPTY String Distinction
+
+The editor explicitly distinguishes between SQL **NULL** and an **empty string** — a key requirement for DBRider / DBUnit datasets.
+
+| Type | Display | Default marker | Keyboard shortcut |
+|------|---------|----------------|-------------------|
+| NULL | Red background + `NULL` label | `[null]` | `Alt+N` |
+| Empty string | Teal background + `EMPTY` label | `[empty]` | `Alt+E` |
+| Blank cell | (blank) | `""` | — |
+
+The marker strings are configurable via `simpleExcelEditor.nullMarkers` / `simpleExcelEditor.emptyMarkers`.
+
+### Date Validation
+
+Columns whose name contains `date`, `day`, `_on`, or `_at` are treated as date columns.  
+Any cell that does not match the ISO format (`yyyy-MM-dd` or `yyyy-MM-dd HH:mm:ss`) is highlighted with a light-red background as a warning.
+
+### Column Statistics
+
+Click a column header (or any cell in a column) to select the column.  
+The status bar at the bottom shows:
+
+```
+column_name: 10 rows | NULL: 2 | Empty: 1 | Unique: 7
+```
+
+### Settings
+
+Click the **⚙** button on the right end of the toolbar, or open the Command Palette and run **"Simple Excel Editor: Open Settings"**.
 
 ---
 
-## セットアップ
+## Requirements
+
+### For users (installing from VS Code Marketplace)
+
+- [Visual Studio Code](https://code.visualstudio.com/) 1.80 or later
+
+No Java, no Node.js, no additional runtime required. Excel I/O is handled by [ExcelJS](https://github.com/exceljs/exceljs) (MIT), which is bundled inside the extension.
+
+> **Note:** `.xls` (Excel 97–2003 binary format) is not supported. Please use `.xlsx` or `.xlsm`.
+
+### For developers (building from source)
+
+- Node.js (v20 or later)
+
+---
+
+## Development Setup
 
 ```bash
 npm install
 ```
 
-VSCode でこのフォルダを開き、**F5** を押すと拡張機能開発ホストが起動します。
+Open this folder in VS Code and press **F5** to launch the Extension Development Host.
 
----
+```bash
+# Type-check + bundle (extension host + webview)
+npm run compile
 
-## 設定項目
+# Watch mode (use alongside F5)
+npm run watch
 
-| 設定 | デフォルト | 説明 |
-|------|-----------|------|
-| `simpleExcelEditor.nullMarkers` | `["[null]"]` | NULL として扱う文字列のリスト |
-| `simpleExcelEditor.emptyMarkers` | `["[empty]"]` | 空文字として扱う文字列のリスト |
-| `simpleExcelEditor.pageSize` | `200` | 1ページに表示する行数 |
-| `simpleExcelEditor.hasHeader` | `true` | 先頭行をヘッダとして扱うか |
-| `simpleExcelEditor.enableRowGrouping` | `true` | 行グルーピング機能を有効にするか |
+# Run unit tests
+npm test
 
----
-
-## NULL 値・空文字の扱い
-
-このエディタはソフトウェア開発での利用を想定しており、**空文字列と NULL を明確に区別**します。
-DBRider / DBUnit の `ReplacementDataSet` で使われる `[null]` / `[empty]` 記法にデフォルト対応しています。
-
-| 種別 | 表示 | CSV 出力値（デフォルト） | 挿入ショートカット |
-|------|------|------------------------|------------------|
-| NULL | 赤背景 + `NULL` ラベル | `[null]` | `Alt+N` |
-| 空文字 | 青緑背景 + `EMPTY` ラベル | `[empty]` | `Alt+E` |
-| 通常の空セル | 空白 | `""` | — |
-
-`nullMarkers` / `emptyMarkers` 設定でマーカー文字列を変更できます（複数指定可）。
-
----
-
-## キーボードショートカット
-
-| キー | 操作 |
-|------|------|
-| `Alt+N` | 選択セルに NULL マーカーを挿入 |
-| `Alt+E` | 選択セルに 空文字マーカーを挿入 |
-| `Ctrl+D` | 選択行を直下に複製 |
-| `Ctrl+S` | 保存 |
-| `Escape` | 編集キャンセル / 選択解除 |
-| `Tab` / `Shift+Tab` | 編集中に次/前のセルへ移動 |
-| `Enter` | 編集確定 |
-
----
-
-## 日付バリデーション
-
-列名に `date`、`day`、`_on`、`_at` を含むカラムを自動的に日付列と見なし、
-ISO 形式（`yyyy-MM-dd` または `yyyy-MM-dd HH:mm:ss`）以外の値が入力されている場合は
-セルを薄赤背景で警告表示します。
-
----
-
-## 列統計情報
-
-列ヘッダ（または列内のセル）をクリックして列を選択すると、
-ステータスバーに以下の統計が表示されます。
-
-```
-列名: 10行 | NULL: 2件 | 空文字: 1件 | ユニーク: 7件
+# Package as .vsix
+npm run package
 ```
 
 ---
 
-## 構成
+## Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `simpleExcelEditor.nullMarkers` | `["[null]"]` | Strings to treat as SQL NULL |
+| `simpleExcelEditor.emptyMarkers` | `["[empty]"]` | Strings to treat as empty string |
+| `simpleExcelEditor.pageSize` | `200` | Number of rows per page |
+| `simpleExcelEditor.hasHeader` | `true` | Treat the first row as a header |
+| `simpleExcelEditor.enableRowGrouping` | `true` | Enable the row grouping feature |
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Alt+N` | Insert NULL marker into selected cell(s) |
+| `Alt+E` | Insert empty-string marker into selected cell(s) |
+| `Ctrl+D` | Duplicate selected row below |
+| `Ctrl+S` | Save |
+| `Escape` | Cancel edit / clear selection |
+| `Tab` / `Shift+Tab` | Move to next / previous cell while editing |
+| `Enter` | Commit edit |
+
+---
+
+## Project Structure
 
 ```
 simple-excel-editor/
 ├── src/
-│   ├── extension.ts            # エントリポイント
-│   ├── ExcelEditorProvider.ts  # カスタムエディタ本体
-│   ├── ExcelDocument.ts        # ドキュメントモデル
-│   ├── CsvUtils.ts             # CSV パース/シリアライズ
+│   ├── extension.ts            # Entry point
+│   ├── ExcelEditorProvider.ts  # Custom editor provider
+│   ├── ExcelDocument.ts        # Document model
+│   ├── CsvUtils.ts             # CSV parse / serialize
 │   ├── excel/
-│   │   ├── IExcelIO.ts         # Excel I/O インターフェース
-│   │   └── ExcelJsIO.ts        # ExcelJS 実装
+│   │   ├── IExcelIO.ts         # Excel I/O interface
+│   │   └── ExcelJsIO.ts        # ExcelJS implementation
 │   └── test/
-│       └── CsvUtils.test.ts    # ユニットテスト（Mocha + ts-node）
+│       └── CsvUtils.test.ts    # Unit tests (Mocha + ts-node)
 ├── media/
-│   ├── editor.js               # Webview UI（esbuild バンドル済み）
-│   └── editor.css              # スタイル（VS Code テーマ変数対応）
-├── tsconfig.json               # 共通 TypeScript 設定
-├── tsconfig.build.json         # ビルド用（テストコードを除外）
-└── tsconfig.test.json          # テスト用（Mocha 型定義を追加）
-```
-
-### テストの実行
-
-```bash
-npm test
+│   ├── editor.js               # Webview UI (bundled by esbuild)
+│   └── editor.css              # Styles (VS Code theme variables)
+├── tsconfig.json
+├── tsconfig.build.json
+└── tsconfig.test.json
 ```
 
 ---
 
-## ライセンス
+## License
 
 MIT
