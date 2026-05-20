@@ -148,7 +148,8 @@
     const ci = groupColIndex();
     if (ci < 0) return null;
     const val = (row[ci] ?? "").trim();
-    return /^\[.+\]$/.test(val) ? val : null;
+    const m = val.match(/^\[.+?\]/);
+    return m ? m[0] : null;
   }
   function buildGroupColorMap() {
     const map = /* @__PURE__ */ new Map();
@@ -446,13 +447,20 @@
     const offset = S.page * S.pageSize;
     const slice = displayRows.slice(offset, offset + S.pageSize);
     const firstOccMap = /* @__PURE__ */ new Map();
+    const groupCountMap = /* @__PURE__ */ new Map();
+    if (ci >= 0) {
+      for (const row of S.rows) {
+        const key = groupKeyOf(row);
+        if (key) groupCountMap.set(key, (groupCountMap.get(key) ?? 0) + 1);
+      }
+    }
     for (const { ri, data } of displayRows) {
       const key = ci >= 0 ? groupKeyOf(data) : null;
       if (key && !firstOccMap.has(key)) firstOccMap.set(key, ri);
     }
     slice.forEach(({ data: rowData, ri }) => {
       const groupKey = ci >= 0 ? groupKeyOf(rowData) : null;
-      const isRepresentative = groupKey !== null && firstOccMap.get(groupKey) === ri && !S.groupFilter;
+      const isRepresentative = groupKey !== null && firstOccMap.get(groupKey) === ri && (groupCountMap.get(groupKey) ?? 0) >= 2 && !S.groupFilter;
       const isExpanded = groupKey !== null && S.expandedGroups.has(groupKey);
       const tr = document.createElement("tr");
       tr.dataset.row = String(ri);

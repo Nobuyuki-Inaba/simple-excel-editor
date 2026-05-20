@@ -237,8 +237,15 @@ export function renderBody(): void {
   const offset = S.page * S.pageSize;
   const slice  = displayRows.slice(offset, offset + S.pageSize);
 
-  // First occurrence of each group key in the full display list → representative row
-  const firstOccMap = new Map<string, number>();
+  // First occurrence from display list; count from full S.rows (collapsed rows must not reduce count)
+  const firstOccMap   = new Map<string, number>();
+  const groupCountMap = new Map<string, number>();
+  if (ci >= 0) {
+    for (const row of S.rows) {
+      const key = groupKeyOf(row);
+      if (key) groupCountMap.set(key, (groupCountMap.get(key) ?? 0) + 1);
+    }
+  }
   for (const { ri, data } of displayRows) {
     const key = ci >= 0 ? groupKeyOf(data) : null;
     if (key && !firstOccMap.has(key)) firstOccMap.set(key, ri);
@@ -246,7 +253,9 @@ export function renderBody(): void {
 
   slice.forEach(({ data: rowData, ri }) => {
     const groupKey       = ci >= 0 ? groupKeyOf(rowData) : null;
-    const isRepresentative = groupKey !== null && firstOccMap.get(groupKey) === ri && !S.groupFilter;
+    // Only show the accordion toggle when 2+ rows share the same group key
+    const isRepresentative = groupKey !== null && firstOccMap.get(groupKey) === ri
+      && (groupCountMap.get(groupKey) ?? 0) >= 2 && !S.groupFilter;
     const isExpanded       = groupKey !== null && S.expandedGroups.has(groupKey);
 
     const tr = document.createElement('tr');

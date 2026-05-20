@@ -22,7 +22,9 @@ export function groupKeyOf(row: string[]): string | null {
   const ci = groupColIndex();
   if (ci < 0) return null;
   const val = (row[ci] ?? '').trim();
-  return /^\[.+\]$/.test(val) ? val : null;
+  // Extract leading [key] prefix; trailing text after ] is allowed (e.g. "[case 9] memo")
+  const m = val.match(/^\[.+?\]/);
+  return m ? m[0] : null;
 }
 
 export function buildGroupColorMap(): Map<string, string> {
