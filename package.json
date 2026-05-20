@@ -49,7 +49,7 @@
     "commands": [
       {
         "command": "simpleExcelEditor.openSettings",
-        "title": "Simple Excel Editor: 設定を開く"
+        "title": "%command.openSettings.title%"
       }
     ],
     "configuration": {
@@ -63,7 +63,7 @@
           "default": [
             "[null]"
           ],
-          "description": "NULLとして扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [null] を使用します。"
+          "description": "%config.nullMarkers.description%"
         },
         "simpleExcelEditor.emptyMarkers": {
           "type": "array",
@@ -73,24 +73,24 @@
           "default": [
             "[empty]"
           ],
-          "description": "空文字列として扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [empty] を使用します。"
+          "description": "%config.emptyMarkers.description%"
         },
         "simpleExcelEditor.pageSize": {
           "type": "number",
           "default": 200,
           "minimum": 50,
           "maximum": 2000,
-          "description": "1ページに表示する行数。"
+          "description": "%config.pageSize.description%"
         },
         "simpleExcelEditor.hasHeader": {
           "type": "boolean",
           "default": true,
-          "description": "最初の行をヘッダ行として扱います。"
+          "description": "%config.hasHeader.description%"
         },
         "simpleExcelEditor.enableRowGrouping": {
           "type": "boolean",
           "default": true,
-          "description": "行グルーピング機能を有効にします。空白ヘッダ列に [グループ名] 形式の値を入力することで同じ値を持つ行をグループ化できます。"
+          "description": "%config.enableRowGrouping.description%"
         }
       }
     }

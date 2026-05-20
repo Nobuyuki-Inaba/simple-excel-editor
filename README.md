@@ -78,7 +78,7 @@ Enable or disable this feature with `simpleExcelEditor.enableRowGrouping` in [Se
 
 ### Cross-Sheet FK Navigation
 
-When a single cell is selected, the toolbar automatically shows a **"→ [SheetName] で参照"** button if another sheet has a column with the same name.  
+When a single cell is selected, the toolbar automatically shows a **"→ Navigate in [SheetName]"** button if another sheet has a column with the same name.  
 Clicking the button switches to that sheet and highlights all rows where the column value matches the selected cell.
 
 If multiple sheets have a matching column, a dropdown button appears instead.  
@@ -109,6 +109,10 @@ The status bar at the bottom shows:
 ```
 column_name: 10 rows | NULL: 2 | Empty: 1 | Unique: 7
 ```
+
+### Language Support
+
+The UI is displayed in **English by default**. When VS Code is set to Japanese (`ja`), all labels, messages, and tooltips automatically switch to Japanese.
 
 ### Settings
 

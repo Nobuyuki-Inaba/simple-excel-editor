@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { parseCsv, serializeCsv, generateColumnNames } from './CsvUtils';
 import { ExcelDocument, DocumentKind, SheetData } from './ExcelDocument';
 import { IExcelIO } from './excel/IExcelIO';
+import { msg, buildWebviewLabels } from './i18n';
 
 // Callback type used to resolve a pending webview-data request
 type WebviewDataResolver = (data: {
@@ -64,7 +65,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       } else {
         const hasHeader = this.getHasHeader();
         const { sheets, data } = await this.io.readAllSheets(uri.fsPath, hasHeader);
-        if (sheets.length === 0) throw new Error('シートが見つかりません');
+        if (sheets.length === 0) throw new Error(msg.noSheetsFound());
         doc.sheets = sheets;
         doc.activeSheet = sheets[0];
         for (const [name, sheetData] of data) {
@@ -104,9 +105,9 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       const xlsxPath = this.resolveXlsxPath(document);
       if (fs.existsSync(xlsxPath)) {
         vscode.window.showWarningMessage(
-          `${path.basename(xlsxPath)} が既に存在するため保存をキャンセルしました。`
+          msg.saveCancelledWarning(path.basename(xlsxPath))
         );
-        throw new Error(`保存キャンセル: ${path.basename(xlsxPath)} が既に存在します`);
+        throw new Error(msg.saveCancelledError(path.basename(xlsxPath)));
       }
       await this.requestAndSave(document, xlsxPath);
       return;
@@ -142,8 +143,8 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         }
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      vscode.window.showErrorMessage(`リバート失敗: ${msg}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      vscode.window.showErrorMessage(msg.revertFailed(errMsg));
       return;
     }
     const panel = this.panels.get(document.uri.toString());
@@ -233,12 +234,12 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
     if (missing.length > 0) {
       vscode.window.showWarningMessage(
-        `以下の CSV ファイルが見つかりませんでした: ${missing.join(', ')}`
+        msg.csvMissingFiles(missing.join(', '))
       );
     }
 
     if (doc.sheets.length === 0) {
-      throw new Error('読み込める CSV ファイルがありませんでした');
+      throw new Error(msg.csvNoCsvFiles());
     }
 
     doc.activeSheet = doc.sheets[0];
@@ -266,7 +267,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
       const timer = setTimeout(() => {
         this.pendingData.delete(key);
-        reject(new Error('保存タイムアウト: Webviewが応答しませんでした'));
+        reject(new Error(msg.saveTimeout()));
       }, 15_000);
 
       this.pendingData.set(key, async ({ sheetName, columns, rows }) => {
@@ -289,9 +290,9 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   private async handleMessage(
     doc: ExcelDocument,
     panel: vscode.WebviewPanel,
-    msg: Record<string, unknown>
+    message: Record<string, unknown>
   ): Promise<void> {
-    switch (msg.type) {
+    switch (message.type) {
       case 'ready':
         await this.sendInit(doc, panel);
         break;
@@ -301,7 +302,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         break;
 
       case 'switchSheet': {
-        const { sheetName, currentData } = msg as {
+        const { sheetName, currentData } = message as {
           sheetName: string;
           currentData?: { sheetName: string; columns: string[]; rows: string[][] };
         };
@@ -336,7 +337,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
 
       case 'saveData': {
-        const { sheetName, columns, rows } = msg as {
+        const { sheetName, columns, rows } = message as {
           sheetName: string;
           columns: string[];
           rows: string[][];
@@ -349,13 +350,13 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
 
       case 'createSheet': {
-        const { columns, rows } = msg as { columns: string[]; rows: string[][] };
+        const { columns, rows } = message as { columns: string[]; rows: string[][] };
         const input = await vscode.window.showInputBox({
-          prompt: '新しいシート名を入力してください',
-          placeHolder: '例: NewSheet',
+          prompt: msg.createSheetPrompt(),
+          placeHolder: msg.createSheetPlaceholder(),
           validateInput: v => {
-            if (!v?.trim()) return 'シート名を入力してください';
-            if (doc.sheets.includes(v.trim())) return 'そのシート名は既に存在します';
+            if (!v?.trim()) return msg.sheetNameRequired();
+            if (doc.sheets.includes(v.trim())) return msg.sheetNameExists();
             return null;
           },
         });
@@ -373,7 +374,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
 
       case 'renameSheet': {
-        const { oldName, newName, currentData } = msg as {
+        const { oldName, newName, currentData } = message as {
           oldName: string;
           newName: string;
           currentData?: { sheetName: string; columns: string[]; rows: string[][] };
@@ -402,20 +403,21 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       }
 
       case 'deleteSheet': {
-        const { sheetName, currentData } = msg as {
+        const { sheetName, currentData } = message as {
           sheetName: string;
           currentData?: { sheetName: string; columns: string[]; rows: string[][] };
         };
         if (doc.sheets.length <= 1) {
-          panel.webview.postMessage({ type: 'error', message: '最後のシートは削除できません' });
+          panel.webview.postMessage({ type: 'error', message: msg.cannotDeleteLastSheet() });
           break;
         }
+        const deleteBtn = msg.deleteSheetButton();
         const answer = await vscode.window.showWarningMessage(
-          `シート「${sheetName}」を削除しますか？この操作は元に戻せません。`,
+          msg.deleteSheetConfirm(sheetName),
           { modal: true },
-          '削除'
+          deleteBtn
         );
-        if (answer !== '削除') break;
+        if (answer !== deleteBtn) break;
         if (currentData) {
           doc.cache.set(currentData.sheetName, { columns: currentData.columns, rows: currentData.rows });
         }
@@ -453,7 +455,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         break;
       }
       case 'moveSheet': {
-        const newSheets = msg.sheets as string[];
+        const newSheets = message.sheets as string[];
         doc.sheets = newSheets;
         this._onChange.fire({ document: doc });
         break;
@@ -463,7 +465,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
           canSelectMany: false,
           canSelectFiles: false,
           canSelectFolders: true,
-          openLabel: 'ここに出力',
+          openLabel: msg.openDialogCsvExport(),
         });
         if (!dirs || dirs.length === 0) break;
         const outDir = dirs[0].fsPath;
@@ -474,7 +476,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
         );
         if (conflicts.length > 0) {
           vscode.window.showErrorMessage(
-            `CSV出力をキャンセルしました。以下のファイルが既に存在します: ${conflicts.map(n => `${n}.csv`).join(', ')}`
+            msg.csvExportCancelled(conflicts.map(n => `${n}.csv`).join(', '))
           );
           break;
         }
@@ -507,11 +509,11 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 
         if (failedSheets.length > 0) {
           vscode.window.showWarningMessage(
-            `CSV出力が完了しましたが、以下のシートでエラーが発生しました: ${failedSheets.map(n => `${n}.csv`).join(', ')}`
+            msg.csvExportWithErrors(failedSheets.map(n => `${n}.csv`).join(', '))
           );
         } else {
           vscode.window.showInformationMessage(
-            `CSV出力が完了しました（${succeededSheets.length}シート）。`
+            msg.csvExportSuccess(succeededSheets.length)
           );
         }
         break;
@@ -522,7 +524,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
           canSelectFiles: true,
           canSelectFolders: false,
           filters: { 'CSV': ['csv'] },
-          openLabel: 'シートとして追加',
+          openLabel: msg.openDialogCsvImport(),
         });
         if (!uris || uris.length === 0) break;
 
@@ -577,6 +579,7 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
       emptyMarkers,
       enableRowGrouping,
       allSheetColumns,
+      labels: buildWebviewLabels(),
     });
   }
 
@@ -603,9 +606,10 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
     const jsUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.js')
     );
+    const L = buildWebviewLabels();
 
     return /* html */ `<!DOCTYPE html>
-<html lang="ja">
+<html lang="${L.langAttr}">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy"
@@ -619,30 +623,30 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
 <body>
   <div id="toolbar">
     <div class="toolbar-left">
-      <button id="btn-add-row"    title="選択行の下に行を追加">＋ 行</button>
-      <button id="btn-delete-row" title="選択行を削除">－ 行</button>
-      <button id="btn-dup-row"    title="選択行を複製して直下に挿入 (Ctrl+D)">複製 行</button>
-      <button id="btn-add-col"    title="選択列の右に列を追加">＋ 列</button>
-      <button id="btn-delete-col" title="選択列を削除">－ 列</button>
-      <button id="btn-import-csv" title="CSVファイルをシートとして追加">CSV追加</button>
-      <button id="btn-export-csv" title="全シートをCSVファイルとして出力">CSV出力</button>
+      <button id="btn-add-row"    title="${L.titleAddRow}">${L.btnAddRow}</button>
+      <button id="btn-delete-row" title="${L.titleDeleteRow}">${L.btnDeleteRow}</button>
+      <button id="btn-dup-row"    title="${L.titleDupRow}">${L.btnDupRow}</button>
+      <button id="btn-add-col"    title="${L.titleAddCol}">${L.btnAddCol}</button>
+      <button id="btn-delete-col" title="${L.titleDeleteCol}">${L.btnDeleteCol}</button>
+      <button id="btn-import-csv" title="${L.titleImportCsv}">${L.btnImportCsv}</button>
+      <button id="btn-export-csv" title="${L.titleExportCsv}">${L.btnExportCsv}</button>
     </div>
     <div id="filter-area">
-      <input type="text" id="filter-input" placeholder="検索..." autocomplete="off" spellcheck="false">
-      <button id="btn-filter-clear" title="検索クリア">✕</button>
+      <input type="text" id="filter-input" placeholder="${L.searchPlaceholder}" autocomplete="off" spellcheck="false">
+      <button id="btn-filter-clear" title="${L.titleClearSearch}">✕</button>
     </div>
     <div id="group-filter-area" hidden>
-      <select id="group-filter" title="グループで絞り込み"></select>
+      <select id="group-filter" title="${L.titleGroupFilter}"></select>
     </div>
     <div id="fk-nav-area" hidden>
       <button id="btn-fk-single" hidden></button>
       <select id="fk-sheet-select" hidden></select>
-      <button id="btn-fk-go" hidden>→ 参照</button>
+      <button id="btn-fk-go" hidden>${L.fkGoBtn}</button>
     </div>
     <div class="toolbar-right">
-      <span class="hint">NULL: Alt+N ｜ 空文字: Alt+E</span>
-      <span id="status-bar">読み込み中...</span>
-      <button id="btn-open-settings" title="拡張機能の設定を開く">⚙</button>
+      <span class="hint">${L.hintNullEmpty}</span>
+      <span id="status-bar">${L.statusLoading}</span>
+      <button id="btn-open-settings" title="${L.titleOpenSettings}">⚙</button>
     </div>
   </div>
 
@@ -654,11 +658,11 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   </div>
 
   <div id="pagination">
-    <button id="btn-first" title="最初のページ">《</button>
-    <button id="btn-prev"  title="前のページ">＜</button>
+    <button id="btn-first" title="${L.titleFirstPage}">《</button>
+    <button id="btn-prev"  title="${L.titlePrevPage}">＜</button>
     <span id="page-info"></span>
-    <button id="btn-next"  title="次のページ">＞</button>
-    <button id="btn-last"  title="最後のページ">》</button>
+    <button id="btn-next"  title="${L.titleNextPage}">＞</button>
+    <button id="btn-last"  title="${L.titleLastPage}">》</button>
     <span id="row-count"></span>
   </div>
 
@@ -667,13 +671,13 @@ export class ExcelEditorProvider implements vscode.CustomEditorProvider<ExcelDoc
   </div>
 
   <div id="context-menu">
-    <div class="ctx-item ctx-for-row" id="ctx-create-sheet">選択行でシートを作成...</div>
-    <div class="ctx-item ctx-for-sheet" id="ctx-move-left">← 左へ移動</div>
-    <div class="ctx-item ctx-for-sheet" id="ctx-move-right">右へ移動 →</div>
+    <div class="ctx-item ctx-for-row" id="ctx-create-sheet">${L.ctxCreateSheet}</div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-move-left">${L.ctxMoveLeft}</div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-move-right">${L.ctxMoveRight}</div>
     <div class="ctx-separator ctx-for-sheet"></div>
-    <div class="ctx-item ctx-for-sheet" id="ctx-rename-sheet">シート名を変更...</div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-rename-sheet">${L.ctxRenameSheet}</div>
     <div class="ctx-separator ctx-for-sheet"></div>
-    <div class="ctx-item ctx-for-sheet" id="ctx-delete-sheet">シートを削除</div>
+    <div class="ctx-item ctx-for-sheet" id="ctx-delete-sheet">${L.ctxDeleteSheet}</div>
   </div>
 
   <script src="${jsUri}"></script>

@@ -1,0 +1,8 @@
+{
+  "command.openSettings.title": "Simple Excel Editor: 設定を開く",
+  "config.nullMarkers.description": "NULLとして扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [null] を使用します。",
+  "config.emptyMarkers.description": "空文字列として扱う文字列。DBRider の ReplacementDataSet と合わせる場合は [empty] を使用します。",
+  "config.pageSize.description": "1ページに表示する行数。",
+  "config.hasHeader.description": "最初の行をヘッダ行として扱います。",
+  "config.enableRowGrouping.description": "行グルーピング機能を有効にします。空白ヘッダ列に [グループ名] 形式の値を入力することで同じ値を持つ行をグループ化できます。"
+}

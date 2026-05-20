@@ -51,7 +51,7 @@ Excel reading/writing is done through `IExcelIO` interface (`src/excel/IExcelIO.
 The extension host (`src/`) owns file I/O and Excel read/write. The webview (`media/src/`) owns all edit state, undo/redo, filtering, and rendering. The host is effectively stateless after initialization — it stores cached sheet data in `ExcelDocument` but defers to the webview for all mutations.
 
 **Messages host → webview:** `init`, `sheetData`, `requestSave`
-- `init` payload includes `allSheetColumns: Record<string, string[]>` (column names for every sheet, for FK navigation)
+- `init` payload includes `allSheetColumns: Record<string, string[]>` (column names for every sheet, for FK navigation) and `labels: WebviewLabels` (i18n strings, see `src/i18n.ts`)
 - `sheetData` payload also includes `allSheetColumns`
 
 **Messages webview → host:** `ready`, `edit`, `switchSheet`, `saveData`, `revert`, `importCsv`, `openSettings`, `moveSheet`, `renameSheet`, `deleteSheet`, `createSheet`
@@ -74,11 +74,12 @@ The extension host (`src/`) owns file I/O and Excel read/write. The webview (`me
 |------|------|
 | `src/ExcelEditorProvider.ts` | Custom editor provider; webview lifecycle, message routing, save/revert |
 | `src/ExcelDocument.ts` | Document model; `DocumentKind` ('excel'|'csv'|'tableOrdering'), sheet metadata and per-sheet cache |
+| `src/i18n.ts` | i18n: `msg` (host-side strings), `buildWebviewLabels()` (returns `WebviewLabels` for webview), both en/ja |
 | `src/excel/IExcelIO.ts` | Excel I/O interface (listSheets, readAllSheets, readSheet, writeWorkbook) |
 | `src/excel/ExcelJsIO.ts` | ExcelJS implementation of IExcelIO |
 | `src/CsvUtils.ts` | RFC 4180 CSV parser/serializer; column name generation (A–Z, AA–AZ…) |
 | `media/src/main.ts` | Webview entry; message routing, keyboard shortcut wiring |
-| `media/src/state.ts` | Global state object `S` and DOM element refs |
+| `media/src/state.ts` | Global state `S`, DOM refs, `WebviewLabels` type, `fmt()` template helper |
 | `media/src/render.ts` | State → DOM; table, column headers, pagination, status bar |
 | `media/src/selection.ts` | Cell/row/column selection with Shift+click / Ctrl+click |
 | `media/src/fkNav.ts` | FK reference navigation: `updateFkButtons`, `applyFkHighlight`, `clearFkHighlight` |
@@ -138,6 +139,15 @@ All sheets are loaded eagerly at open time, so `allSheetColumns` is always compl
 ### Settings Button (issue #44)
 
 ツールバー右端の `⚙` ボタン（`#btn-open-settings`）をクリックすると `openSettings` メッセージをホストへ送信。ホストが `workbench.action.openSettings simpleExcelEditor` を実行して設定画面を開く。コマンドパレットの `simpleExcelEditor.openSettings` コマンドも引き続き動作する。
+
+### Internationalization / i18n (issue #60)
+
+English is the default UI language. Japanese is shown when `vscode.env.language` starts with `"ja"`.
+
+- **Extension host strings** (`src/i18n.ts`): use `msg.xxx()` functions (e.g. `msg.noSheetsFound()`). Each function calls `isJa()` and returns the appropriate string.
+- **Webview strings**: `buildWebviewLabels()` (also in `src/i18n.ts`) returns a `WebviewLabels` object. It is passed as `labels` in the `init` message → stored in `S.labels`. All webview components use `S.labels.xxx` instead of hardcoded strings. Use `fmt(S.labels.someTemplate, arg0, arg1)` for parameterized strings (`{0}`, `{1}` placeholders).
+- **HTML template** (`buildHtml`): calls `buildWebviewLabels()` to localize static HTML elements (button titles, placeholder, context menu items, etc.).
+- **`package.json` strings**: use `%key%` syntax. `package.nls.json` holds English; `package.nls.ja.json` holds Japanese.
 
 ### NULL / EMPTY Distinction
 

@@ -1,4 +1,4 @@
-import { S, headerRow, tableBody, sheetTabsEl, pageInfo, rowCount, statusBar,
+import { S, fmt, headerRow, tableBody, sheetTabsEl, pageInfo, rowCount, statusBar,
          btnFirst, btnPrev, btnNext, btnLast, requestSwitchSheet } from './state';
 
 import { isNullValue, isEmptyValue, isDateColumn, isDateLike, isValidIsoDate,
@@ -180,7 +180,7 @@ export function renderHeader(): void {
     const th = document.createElement('th');
     if (col === '') {
       th.textContent = '🏷';
-      th.title = 'グループ列';
+      th.title = S.labels.groupColTitle;
       th.classList.add('group-col-header');
     } else {
       th.textContent = col;
@@ -213,11 +213,14 @@ export function renderGroupFilter(): void {
   if (keys.length === 0) { area.hidden = true; return; }
 
   area.hidden = false;
-  sel.innerHTML = '<option value="">グループ: すべて</option>';
+  const allOpt = document.createElement('option');
+  allOpt.value = '';
+  allOpt.textContent = S.labels.groupAll;
+  sel.replaceChildren(allOpt);
   for (const key of keys) {
     const opt = document.createElement('option');
     opt.value = key;
-    opt.textContent = `${key} (${counts.get(key)}件)`;
+    opt.textContent = fmt(S.labels.groupCountTpl, key, counts.get(key) ?? 0);
     if (S.groupFilter === key) opt.selected = true;
     sel.appendChild(opt);
   }
@@ -260,7 +263,7 @@ export function renderBody(): void {
     tdNum.className = 'row-num';
     if (isRepresentative) {
       tdNum.classList.add('group-toggle');
-      tdNum.textContent = (isExpanded ? '▼' : '▶') + ' グループ化';
+      tdNum.textContent = isExpanded ? S.labels.groupToggleExpand : S.labels.groupToggleCollapse;
       tdNum.addEventListener('click', e => {
         e.stopPropagation();
         if (S.expandedGroups.has(groupKey!)) {
@@ -328,7 +331,7 @@ export function setCellDisplay(td: HTMLElement, value: string, colName = ''): vo
     td.textContent = value;
     if (isDateColumn(colName) && isDateLike(value) && !isValidIsoDate(value)) {
       td.classList.add('date-warning-cell');
-      td.title = '⚠ 推奨フォーマット: yyyy-MM-dd または yyyy-MM-dd HH:mm:ss';
+      td.title = S.labels.dateWarning;
     }
   }
 }
@@ -338,8 +341,8 @@ export function renderPagination(): void {
   const total = Math.max(1, Math.ceil(displayRows.length / S.pageSize));
   pageInfo.textContent = `${S.page + 1} / ${total}`;
   rowCount.textContent = S.filterText
-    ? `${displayRows.length} 件一致 / ${S.rows.length} 行`
-    : `${S.rows.length} 行`;
+    ? fmt(S.labels.rowsMatch, displayRows.length, S.rows.length)
+    : fmt(S.labels.totalRows, S.rows.length);
   btnFirst.disabled = S.page === 0;
   btnPrev.disabled  = S.page === 0;
   btnNext.disabled  = S.page >= total - 1;
@@ -349,18 +352,18 @@ export function renderPagination(): void {
 export function updateStatus(): void {
   const dirty = S.dirty ? ' ●' : '';
   if (S.selectedRows.size > 1) {
-    statusBar.textContent = `${S.selectedRows.size}行 選択中` + dirty;
+    statusBar.textContent = fmt(S.labels.rowsSelected, S.selectedRows.size) + dirty;
   } else if (S.selectedCells.size > 1) {
     const coords = [...S.selectedCells].map(k => k.split(',').map(Number));
     const rowSet = new Set(coords.map(([r]) => r));
     const colSet = new Set(coords.map(([, c]) => c));
-    statusBar.textContent = `${rowSet.size}行 × ${colSet.size}列 選択中` + dirty;
+    statusBar.textContent = fmt(S.labels.cellsSelected, rowSet.size, colSet.size) + dirty;
   } else if (S.selectedCol >= 0) {
     const stats = calculateColumnStats(S.selectedCol);
     const colName = S.columns[S.selectedCol] || colLabel(S.selectedCol);
-    let text = `${colName}: ${stats.total}行 | NULL: ${stats.nullCount}件 | ユニーク: ${stats.uniqueCount}件`;
-    if (stats.emptyCount > 0) text += ` | 空: ${stats.emptyCount}件`;
-    if (stats.dupCount > 0)   text += ` | 重複: ${stats.dupCount}件`;
+    let text = fmt(S.labels.colStatsMain, colName, stats.total, stats.nullCount, stats.uniqueCount);
+    if (stats.emptyCount > 0) text += fmt(S.labels.colStatsEmpty, stats.emptyCount);
+    if (stats.dupCount > 0)   text += fmt(S.labels.colStatsDup, stats.dupCount);
     statusBar.textContent = text + dirty;
   } else {
     statusBar.textContent = S.activeSheet + dirty;

@@ -9,6 +9,115 @@ export interface HistoryEntry {
   columns: string[];
 }
 
+export interface WebviewLabels {
+  groupColTitle: string;
+  groupAll: string;
+  groupCountTpl: string;
+  groupToggleExpand: string;
+  groupToggleCollapse: string;
+  dateWarning: string;
+  statusLoading: string;
+  rowsMatch: string;
+  totalRows: string;
+  rowsSelected: string;
+  cellsSelected: string;
+  colStatsMain: string;
+  colStatsEmpty: string;
+  colStatsDup: string;
+  cannotDeleteLastSheet: string;
+  fkNavigateTpl: string;
+  fkGoBtn: string;
+  fkColumnNotFound: string;
+  fkNoMatch: string;
+  hintNullEmpty: string;
+  titleAddRow: string;
+  titleDeleteRow: string;
+  titleDupRow: string;
+  titleAddCol: string;
+  titleDeleteCol: string;
+  titleImportCsv: string;
+  titleExportCsv: string;
+  btnAddRow: string;
+  btnDeleteRow: string;
+  btnDupRow: string;
+  btnAddCol: string;
+  btnDeleteCol: string;
+  btnImportCsv: string;
+  btnExportCsv: string;
+  searchPlaceholder: string;
+  titleClearSearch: string;
+  titleGroupFilter: string;
+  titleOpenSettings: string;
+  titleFirstPage: string;
+  titlePrevPage: string;
+  titleNextPage: string;
+  titleLastPage: string;
+  ctxCreateSheet: string;
+  ctxMoveLeft: string;
+  ctxMoveRight: string;
+  ctxRenameSheet: string;
+  ctxDeleteSheet: string;
+  langAttr: string;
+}
+
+const defaultLabels: WebviewLabels = {
+  groupColTitle: 'Group column',
+  groupAll: 'Group: All',
+  groupCountTpl: '{0} ({1} rows)',
+  groupToggleExpand: '▼ Grouped',
+  groupToggleCollapse: '▶ Grouped',
+  dateWarning: '⚠ Recommended format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss',
+  statusLoading: 'Loading...',
+  rowsMatch: '{0} matching / {1} rows',
+  totalRows: '{0} rows',
+  rowsSelected: '{0} rows selected',
+  cellsSelected: '{0} rows × {1} cols selected',
+  colStatsMain: '{0}: {1} rows | NULL: {2} | Unique: {3}',
+  colStatsEmpty: ' | Empty: {0}',
+  colStatsDup: ' | Duplicates: {0}',
+  cannotDeleteLastSheet: 'Cannot delete the last sheet',
+  fkNavigateTpl: '→ Navigate in {0}',
+  fkGoBtn: '→ Navigate',
+  fkColumnNotFound: '⚠ Reference column not found',
+  fkNoMatch: '⚠ No matching records found',
+  hintNullEmpty: 'NULL: Alt+N | Empty string: Alt+E',
+  titleAddRow: 'Add row below selection',
+  titleDeleteRow: 'Delete selected row',
+  titleDupRow: 'Duplicate selected row below (Ctrl+D)',
+  titleAddCol: 'Add column to the right of selection',
+  titleDeleteCol: 'Delete selected column',
+  titleImportCsv: 'Add CSV file as a sheet',
+  titleExportCsv: 'Export all sheets as CSV files',
+  btnAddRow: '＋ Row',
+  btnDeleteRow: '－ Row',
+  btnDupRow: 'Dup Row',
+  btnAddCol: '＋ Col',
+  btnDeleteCol: '－ Col',
+  btnImportCsv: 'Add CSV',
+  btnExportCsv: 'Export CSV',
+  searchPlaceholder: 'Search...',
+  titleClearSearch: 'Clear search',
+  titleGroupFilter: 'Filter by group',
+  titleOpenSettings: 'Open extension settings',
+  titleFirstPage: 'First page',
+  titlePrevPage: 'Previous page',
+  titleNextPage: 'Next page',
+  titleLastPage: 'Last page',
+  ctxCreateSheet: 'Create sheet from selected rows...',
+  ctxMoveLeft: '← Move left',
+  ctxMoveRight: 'Move right →',
+  ctxRenameSheet: 'Rename sheet...',
+  ctxDeleteSheet: 'Delete sheet',
+  langAttr: 'en',
+};
+
+export function fmt(template: string, ...args: (string | number)[]): string {
+  return args.reduce<string>(
+    (s, arg, i) => s.replace(`{${i}}`, String(arg)),
+    template
+  );
+}
+
 export const S = {
   sheets:       [] as string[],
   activeSheet:  '',
@@ -36,6 +145,8 @@ export const S = {
   allSheetColumns:    {} as Record<string, string[]>,
   pendingFkHighlight: null as { columnName: string; value: string } | null,
   fkHighlightRows:    new Set<number>(),
+  // i18n
+  labels: { ...defaultLabels } as WebviewLabels,
 };
 
 // ── DOM refs ────────────────────────────────────────────────────────────────

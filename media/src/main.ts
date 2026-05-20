@@ -1,4 +1,4 @@
-import { S, vscode, filterInput, statusBar, sheetTabsEl, registerUpdateStatus, sendSaveData, markDirty, requestSwitchSheet } from './state';
+import { S, vscode, filterInput, statusBar, sheetTabsEl, registerUpdateStatus, sendSaveData, markDirty, requestSwitchSheet, WebviewLabels } from './state';
 import { render, renderSheetTabs, renderTable, renderBody, renderPagination,
          updateStatus, registerRenderHandlers, startSheetRename } from './render';
 import { selectCell, selectRow, selectColumn } from './selection';
@@ -135,7 +135,7 @@ ctxRenameSheet.addEventListener('click', () => {
 ctxDeleteSheet.addEventListener('click', () => {
   hideContextMenu();
   if (S.sheets.length <= 1) {
-    statusBar.textContent = '最後のシートは削除できません';
+    statusBar.textContent = S.labels.cannotDeleteLastSheet;
     return;
   }
   vscode.postMessage({
@@ -202,6 +202,7 @@ window.addEventListener('message', event => {
       S.emptyMarkers      = msg.emptyMarkers as string[];
       S.enableRowGrouping = (msg.enableRowGrouping as boolean) ?? true;
       S.allSheetColumns   = (msg.allSheetColumns as Record<string, string[]>) ?? {};
+      if (msg.labels) S.labels = msg.labels as WebviewLabels;
       S.filterText        = '';
       filterInput.value   = '';
       S.page              = 0;

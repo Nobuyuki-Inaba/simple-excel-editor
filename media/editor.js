@@ -3,6 +3,62 @@
   // media/src/state.ts
   var vscode = acquireVsCodeApi();
   var HISTORY_LIMIT = 50;
+  var defaultLabels = {
+    groupColTitle: "Group column",
+    groupAll: "Group: All",
+    groupCountTpl: "{0} ({1} rows)",
+    groupToggleExpand: "\u25BC Grouped",
+    groupToggleCollapse: "\u25B6 Grouped",
+    dateWarning: "\u26A0 Recommended format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss",
+    statusLoading: "Loading...",
+    rowsMatch: "{0} matching / {1} rows",
+    totalRows: "{0} rows",
+    rowsSelected: "{0} rows selected",
+    cellsSelected: "{0} rows \xD7 {1} cols selected",
+    colStatsMain: "{0}: {1} rows | NULL: {2} | Unique: {3}",
+    colStatsEmpty: " | Empty: {0}",
+    colStatsDup: " | Duplicates: {0}",
+    cannotDeleteLastSheet: "Cannot delete the last sheet",
+    fkNavigateTpl: "\u2192 Navigate in {0}",
+    fkGoBtn: "\u2192 Navigate",
+    fkColumnNotFound: "\u26A0 Reference column not found",
+    fkNoMatch: "\u26A0 No matching records found",
+    hintNullEmpty: "NULL: Alt+N | Empty string: Alt+E",
+    titleAddRow: "Add row below selection",
+    titleDeleteRow: "Delete selected row",
+    titleDupRow: "Duplicate selected row below (Ctrl+D)",
+    titleAddCol: "Add column to the right of selection",
+    titleDeleteCol: "Delete selected column",
+    titleImportCsv: "Add CSV file as a sheet",
+    titleExportCsv: "Export all sheets as CSV files",
+    btnAddRow: "\uFF0B Row",
+    btnDeleteRow: "\uFF0D Row",
+    btnDupRow: "Dup Row",
+    btnAddCol: "\uFF0B Col",
+    btnDeleteCol: "\uFF0D Col",
+    btnImportCsv: "Add CSV",
+    btnExportCsv: "Export CSV",
+    searchPlaceholder: "Search...",
+    titleClearSearch: "Clear search",
+    titleGroupFilter: "Filter by group",
+    titleOpenSettings: "Open extension settings",
+    titleFirstPage: "First page",
+    titlePrevPage: "Previous page",
+    titleNextPage: "Next page",
+    titleLastPage: "Last page",
+    ctxCreateSheet: "Create sheet from selected rows...",
+    ctxMoveLeft: "\u2190 Move left",
+    ctxMoveRight: "Move right \u2192",
+    ctxRenameSheet: "Rename sheet...",
+    ctxDeleteSheet: "Delete sheet",
+    langAttr: "en"
+  };
+  function fmt(template, ...args) {
+    return args.reduce(
+      (s, arg, i) => s.replace(`{${i}}`, String(arg)),
+      template
+    );
+  }
   var S = {
     sheets: [],
     activeSheet: "",
@@ -29,7 +85,9 @@
     // FK navigation
     allSheetColumns: {},
     pendingFkHighlight: null,
-    fkHighlightRows: /* @__PURE__ */ new Set()
+    fkHighlightRows: /* @__PURE__ */ new Set(),
+    // i18n
+    labels: { ...defaultLabels }
   };
   var $ = (id) => document.getElementById(id);
   var headerRow = $("header-row");
@@ -332,7 +390,7 @@
       const th = document.createElement("th");
       if (col === "") {
         th.textContent = "\u{1F3F7}";
-        th.title = "\u30B0\u30EB\u30FC\u30D7\u5217";
+        th.title = S.labels.groupColTitle;
         th.classList.add("group-col-header");
       } else {
         th.textContent = col;
@@ -366,11 +424,14 @@
       return;
     }
     area.hidden = false;
-    sel.innerHTML = '<option value="">\u30B0\u30EB\u30FC\u30D7: \u3059\u3079\u3066</option>';
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = S.labels.groupAll;
+    sel.replaceChildren(allOpt);
     for (const key of keys) {
       const opt = document.createElement("option");
       opt.value = key;
-      opt.textContent = `${key} (${counts.get(key)}\u4EF6)`;
+      opt.textContent = fmt(S.labels.groupCountTpl, key, counts.get(key) ?? 0);
       if (S.groupFilter === key) opt.selected = true;
       sel.appendChild(opt);
     }
@@ -406,7 +467,7 @@
       tdNum.className = "row-num";
       if (isRepresentative) {
         tdNum.classList.add("group-toggle");
-        tdNum.textContent = (isExpanded ? "\u25BC" : "\u25B6") + " \u30B0\u30EB\u30FC\u30D7\u5316";
+        tdNum.textContent = isExpanded ? S.labels.groupToggleExpand : S.labels.groupToggleCollapse;
         tdNum.addEventListener("click", (e) => {
           e.stopPropagation();
           if (S.expandedGroups.has(groupKey)) {
@@ -465,7 +526,7 @@
       td.textContent = value;
       if (isDateColumn(colName) && isDateLike(value) && !isValidIsoDate(value)) {
         td.classList.add("date-warning-cell");
-        td.title = "\u26A0 \u63A8\u5968\u30D5\u30A9\u30FC\u30DE\u30C3\u30C8: yyyy-MM-dd \u307E\u305F\u306F yyyy-MM-dd HH:mm:ss";
+        td.title = S.labels.dateWarning;
       }
     }
   }
@@ -473,7 +534,7 @@
     const displayRows = getDisplayRows();
     const total = Math.max(1, Math.ceil(displayRows.length / S.pageSize));
     pageInfo.textContent = `${S.page + 1} / ${total}`;
-    rowCount.textContent = S.filterText ? `${displayRows.length} \u4EF6\u4E00\u81F4 / ${S.rows.length} \u884C` : `${S.rows.length} \u884C`;
+    rowCount.textContent = S.filterText ? fmt(S.labels.rowsMatch, displayRows.length, S.rows.length) : fmt(S.labels.totalRows, S.rows.length);
     btnFirst.disabled = S.page === 0;
     btnPrev.disabled = S.page === 0;
     btnNext.disabled = S.page >= total - 1;
@@ -482,18 +543,18 @@
   function updateStatus() {
     const dirty = S.dirty ? " \u25CF" : "";
     if (S.selectedRows.size > 1) {
-      statusBar.textContent = `${S.selectedRows.size}\u884C \u9078\u629E\u4E2D` + dirty;
+      statusBar.textContent = fmt(S.labels.rowsSelected, S.selectedRows.size) + dirty;
     } else if (S.selectedCells.size > 1) {
       const coords = [...S.selectedCells].map((k) => k.split(",").map(Number));
       const rowSet = new Set(coords.map(([r]) => r));
       const colSet = new Set(coords.map(([, c]) => c));
-      statusBar.textContent = `${rowSet.size}\u884C \xD7 ${colSet.size}\u5217 \u9078\u629E\u4E2D` + dirty;
+      statusBar.textContent = fmt(S.labels.cellsSelected, rowSet.size, colSet.size) + dirty;
     } else if (S.selectedCol >= 0) {
       const stats = calculateColumnStats(S.selectedCol);
       const colName = S.columns[S.selectedCol] || colLabel(S.selectedCol);
-      let text = `${colName}: ${stats.total}\u884C | NULL: ${stats.nullCount}\u4EF6 | \u30E6\u30CB\u30FC\u30AF: ${stats.uniqueCount}\u4EF6`;
-      if (stats.emptyCount > 0) text += ` | \u7A7A: ${stats.emptyCount}\u4EF6`;
-      if (stats.dupCount > 0) text += ` | \u91CD\u8907: ${stats.dupCount}\u4EF6`;
+      let text = fmt(S.labels.colStatsMain, colName, stats.total, stats.nullCount, stats.uniqueCount);
+      if (stats.emptyCount > 0) text += fmt(S.labels.colStatsEmpty, stats.emptyCount);
+      if (stats.dupCount > 0) text += fmt(S.labels.colStatsDup, stats.dupCount);
       statusBar.textContent = text + dirty;
     } else {
       statusBar.textContent = S.activeSheet + dirty;
@@ -537,7 +598,7 @@
     fkNavArea.hidden = false;
     if (targets.length === 1) {
       fkSingleBtn.hidden = false;
-      fkSingleBtn.textContent = `\u2192 ${targets[0]} \u3067\u53C2\u7167`;
+      fkSingleBtn.textContent = fmt(S.labels.fkNavigateTpl, targets[0]);
       fkSingleBtn.onclick = () => navigateToFk(targets[0], colName, value);
       fkSelect.hidden = true;
       fkGoBtn.hidden = true;
@@ -567,7 +628,7 @@
     S.pendingFkHighlight = null;
     const ci = S.columns.indexOf(hint.columnName);
     if (ci < 0) {
-      statusBar.textContent = "\u26A0 \u53C2\u7167\u5148\u306E\u5217\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093";
+      statusBar.textContent = S.labels.fkColumnNotFound;
       return;
     }
     const matchRows = [];
@@ -576,7 +637,7 @@
     });
     if (matchRows.length === 0) {
       S.fkHighlightRows = /* @__PURE__ */ new Set();
-      statusBar.textContent = "\u26A0 \u4E00\u81F4\u3059\u308B\u30EC\u30B3\u30FC\u30C9\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093";
+      statusBar.textContent = S.labels.fkNoMatch;
       return;
     }
     S.fkHighlightRows = new Set(matchRows);
@@ -1157,7 +1218,7 @@
   ctxDeleteSheet.addEventListener("click", () => {
     hideContextMenu();
     if (S.sheets.length <= 1) {
-      statusBar.textContent = "\u6700\u5F8C\u306E\u30B7\u30FC\u30C8\u306F\u524A\u9664\u3067\u304D\u307E\u305B\u3093";
+      statusBar.textContent = S.labels.cannotDeleteLastSheet;
       return;
     }
     vscode.postMessage({
@@ -1215,6 +1276,7 @@
         S.emptyMarkers = msg.emptyMarkers;
         S.enableRowGrouping = msg.enableRowGrouping ?? true;
         S.allSheetColumns = msg.allSheetColumns ?? {};
+        if (msg.labels) S.labels = msg.labels;
         S.filterText = "";
         filterInput.value = "";
         S.page = 0;

@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { SheetData } from '../ExcelDocument';
 import { generateColumnNames } from '../CsvUtils';
 import { IExcelIO } from './IExcelIO';
+import { msg } from '../i18n';
 
 export class ExcelJsIO implements IExcelIO {
   async listSheets(filePath: string): Promise<string[]> {
@@ -22,7 +23,7 @@ export class ExcelJsIO implements IExcelIO {
   async readSheet(filePath: string, sheetName: string, hasHeader: boolean): Promise<SheetData> {
     const wb = await this.loadWorkbook(filePath);
     const ws = wb.getWorksheet(sheetName);
-    if (!ws) throw new Error(`シート "${sheetName}" が見つかりません`);
+    if (!ws) throw new Error(msg.sheetNotFound(sheetName));
     return extractSheetData(ws, hasHeader);
   }
 

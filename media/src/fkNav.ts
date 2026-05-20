@@ -1,4 +1,4 @@
-import { S, statusBar, tableBody, requestSwitchSheet } from './state';
+import { S, fmt, statusBar, tableBody, requestSwitchSheet } from './state';
 import { renderBody, renderPagination } from './render';
 
 const fkNavArea   = document.getElementById('fk-nav-area')      as HTMLElement;
@@ -24,7 +24,7 @@ export function updateFkButtons(ci: number, ri: number): void {
 
   if (targets.length === 1) {
     fkSingleBtn.hidden = false;
-    fkSingleBtn.textContent = `→ ${targets[0]} で参照`;
+    fkSingleBtn.textContent = fmt(S.labels.fkNavigateTpl, targets[0]);
     fkSingleBtn.onclick = () => navigateToFk(targets[0], colName, value);
     fkSelect.hidden = true;
     fkGoBtn.hidden  = true;
@@ -58,7 +58,7 @@ export function applyFkHighlight(): void {
 
   const ci = S.columns.indexOf(hint.columnName);
   if (ci < 0) {
-    statusBar.textContent = '⚠ 参照先の列が見つかりません';
+    statusBar.textContent = S.labels.fkColumnNotFound;
     return;
   }
 
@@ -69,7 +69,7 @@ export function applyFkHighlight(): void {
 
   if (matchRows.length === 0) {
     S.fkHighlightRows = new Set();
-    statusBar.textContent = '⚠ 一致するレコードが見つかりません';
+    statusBar.textContent = S.labels.fkNoMatch;
     return;
   }
 
