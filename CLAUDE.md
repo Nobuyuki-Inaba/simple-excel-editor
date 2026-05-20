@@ -144,7 +144,7 @@ All sheets are loaded eagerly at open time, so `allSheetColumns` is always compl
 
 English is the default UI language. Japanese is shown when `vscode.env.language` starts with `"ja"`.
 
-- **Extension host strings** (`src/i18n.ts`): use `msg.xxx()` functions (e.g. `msg.noSheetsFound()`). Each function calls `isJa()` and returns the appropriate string.
+- **Extension host strings** (`src/i18n.ts`): use `msg.xxx()` functions (e.g. `msg.noSheetsFound()`). Each function calls `isJa()` which checks `simpleExcelEditor.language` first (`"ja"` / `"en"`), then falls back to `vscode.env.language` when `"auto"`.
 - **Webview strings**: `buildWebviewLabels()` (also in `src/i18n.ts`) returns a `WebviewLabels` object. It is passed as `labels` in the `init` message → stored in `S.labels`. All webview components use `S.labels.xxx` instead of hardcoded strings. Use `fmt(S.labels.someTemplate, arg0, arg1)` for parameterized strings (`{0}`, `{1}` placeholders).
 - **HTML template** (`buildHtml`): calls `buildWebviewLabels()` to localize static HTML elements (button titles, placeholder, context menu items, etc.).
 - **`package.json` strings**: use `%key%` syntax. `package.nls.json` holds English; `package.nls.ja.json` holds Japanese.

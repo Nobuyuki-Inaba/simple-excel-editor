@@ -91,6 +91,12 @@
           "type": "boolean",
           "default": true,
           "description": "%config.enableRowGrouping.description%"
+        },
+        "simpleExcelEditor.language": {
+          "type": "string",
+          "enum": ["auto", "en", "ja"],
+          "default": "auto",
+          "description": "%config.language.description%"
         }
       }
     }

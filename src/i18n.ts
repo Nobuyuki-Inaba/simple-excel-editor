@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 
 function isJa(): boolean {
+  const lang = vscode.workspace
+    .getConfiguration('simpleExcelEditor')
+    .get<string>('language', 'auto');
+  if (lang === 'ja') return true;
+  if (lang === 'en') return false;
   return vscode.env.language.startsWith('ja');
 }
 

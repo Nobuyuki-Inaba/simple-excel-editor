@@ -112,7 +112,15 @@ column_name: 10 rows | NULL: 2 | Empty: 1 | Unique: 7
 
 ### Language Support
 
-The UI is displayed in **English by default**. When VS Code is set to Japanese (`ja`), all labels, messages, and tooltips automatically switch to Japanese.
+The UI language can be controlled via the `simpleExcelEditor.language` setting:
+
+| Value | Behavior |
+|-------|----------|
+| `"auto"` (default) | Follows the VS Code display language |
+| `"en"` | Always English |
+| `"ja"` | Always Japanese |
+
+Changes take effect the next time a file is opened in the editor.
 
 ### Settings
 
