@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-05-24
+
+### Added
+
+- New command **"Simple Excel Editor: New Excel File"** — opens a save dialog, creates an empty `.xlsx` workbook with one sheet (`Sheet1`), and immediately opens it in the editor
+
+### Fixed
+
+- Excluded `.github/` from the VSIX package (CI workflow files were unnecessarily bundled)
+
 ## [0.1.3] - 2026-05-19
 
 ### Changed

@@ -50,6 +50,12 @@ export const msg = {
     isJa() ? 'ここに出力' : 'Export here',
   openDialogCsvImport: () =>
     isJa() ? 'シートとして追加' : 'Add as sheet',
+  newFileSaveDialogTitle: () =>
+    isJa() ? '新規 Excel ファイルの保存先を選択' : 'Choose location for new Excel file',
+  newFileDefaultSheetName: () =>
+    isJa() ? 'Sheet1' : 'Sheet1',
+  newFileFailed: (err: string) =>
+    isJa() ? `ファイルの作成に失敗しました: ${err}` : `Failed to create file: ${err}`,
 };
 
 export interface WebviewLabels {

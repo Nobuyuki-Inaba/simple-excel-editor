@@ -2,7 +2,7 @@
   "name": "simple-excel-editor",
   "displayName": "Simple Excel Editor",
   "description": "Edit Excel files directly in VSCode with a spreadsheet-like interface",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "nobuyuki-inaba",
   "license": "MIT",
   "repository": {
@@ -50,6 +50,10 @@
       {
         "command": "simpleExcelEditor.openSettings",
         "title": "%command.openSettings.title%"
+      },
+      {
+        "command": "simpleExcelEditor.newFile",
+        "title": "%command.newFile.title%"
       }
     ],
     "configuration": {

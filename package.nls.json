@@ -1,5 +1,6 @@
 {
   "command.openSettings.title": "Simple Excel Editor: Open Settings",
+  "command.newFile.title": "Simple Excel Editor: New Excel File",
   "config.nullMarkers.description": "Strings treated as NULL. Use [null] to match DBRider's ReplacementDataSet.",
   "config.emptyMarkers.description": "Strings treated as empty string. Use [empty] to match DBRider's ReplacementDataSet.",
   "config.pageSize.description": "Number of rows to display per page.",
