@@ -50,6 +50,10 @@
       {
         "command": "simpleExcelEditor.openSettings",
         "title": "%command.openSettings.title%"
+      },
+      {
+        "command": "simpleExcelEditor.newFile",
+        "title": "%command.newFile.title%"
       }
     ],
     "configuration": {

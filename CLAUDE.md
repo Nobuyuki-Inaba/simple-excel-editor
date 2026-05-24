@@ -136,6 +136,10 @@ When a single cell is selected, `fkNav.ts:updateFkButtons` checks `S.allSheetCol
 
 All sheets are loaded eagerly at open time, so `allSheetColumns` is always complete.
 
+### New Excel File Command
+
+`simpleExcelEditor.newFile` コマンドをコマンドパレットから実行すると `vscode.window.showSaveDialog` を表示。保存先を選ぶと `ExcelJsIO.writeWorkbook` で空の Sheet1 を持つ `.xlsx` を生成し、`vscode.openWith` でカスタムエディタとして開く。`extension.ts` に登録。
+
 ### Settings Button (issue #44)
 
 ツールバー右端の `⚙` ボタン（`#btn-open-settings`）をクリックすると `openSettings` メッセージをホストへ送信。ホストが `workbench.action.openSettings simpleExcelEditor` を実行して設定画面を開く。コマンドパレットの `simpleExcelEditor.openSettings` コマンドも引き続き動作する。

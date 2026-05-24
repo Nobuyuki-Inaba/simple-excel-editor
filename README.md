@@ -122,6 +122,11 @@ The UI language can be controlled via the `simpleExcelEditor.language` setting:
 
 Changes take effect the next time a file is opened in the editor.
 
+### New Excel File
+
+Open the Command Palette and run **"Simple Excel Editor: New Excel File"** (Japanese: **"新規 Excel ファイルを作成"**).  
+A save dialog appears — choose a folder and filename (`.xlsx`). An empty workbook with one sheet (`Sheet1`) is created and immediately opened in the editor.
+
 ### Settings
 
 Click the **⚙** button on the right end of the toolbar, or open the Command Palette and run **"Simple Excel Editor: Open Settings"**.
