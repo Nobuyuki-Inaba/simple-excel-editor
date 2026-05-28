@@ -54,7 +54,7 @@ Sheet order is reflected in the saved Excel file.
 
 | Operation | How to perform |
 |-----------|---------------|
-| Open CSV directly | Open any `.csv` file with VS Code — it opens in this editor automatically |
+| Open CSV directly | Open any `.csv` file — a **table icon** appears in the editor title bar; click it to open the file in Simple Excel Editor |
 | Import CSV as a new sheet | Click **"Add CSV"** on the toolbar → select a file |
 | Export all sheets to CSV | Click **"Export CSV"** on the toolbar → choose an output folder. A `table-ordering.txt` is generated automatically. If any `{sheet}.csv` already exists in the folder, the export is cancelled before writing. |
 
