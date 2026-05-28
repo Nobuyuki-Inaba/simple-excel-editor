@@ -6,5 +6,6 @@
   "config.pageSize.description": "Number of rows to display per page.",
   "config.hasHeader.description": "Treat the first row as a header row.",
   "config.enableRowGrouping.description": "Enable row grouping. Enter values in [group name] format in blank-header columns to group rows with the same value.",
-  "config.language.description": "UI language. \"auto\" follows the VS Code display language. Set to \"en\" or \"ja\" to override."
+  "config.language.description": "UI language. \"auto\" follows the VS Code display language. Set to \"en\" or \"ja\" to override.",
+  "command.openCsvWithEditor.title": "Simple Excel Editor: Open CSV with Simple Excel Editor"
 }

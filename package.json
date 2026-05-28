@@ -2,7 +2,7 @@
   "name": "simple-excel-editor",
   "displayName": "Simple Excel Editor",
   "description": "Edit Excel files directly in VSCode with a spreadsheet-like interface",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "nobuyuki-inaba",
   "license": "MIT",
   "repository": {
@@ -37,13 +37,20 @@
             "filenamePattern": "*.xlsm"
           },
           {
-            "filenamePattern": "*.csv"
-          },
-          {
             "filenamePattern": "table-ordering.txt"
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "simpleExcelEditor.editor",
+        "displayName": "Simple Excel Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.csv"
+          }
+        ],
+        "priority": "option"
       }
     ],
     "commands": [
@@ -54,8 +61,22 @@
       {
         "command": "simpleExcelEditor.newFile",
         "title": "%command.newFile.title%"
+      },
+      {
+        "command": "simpleExcelEditor.openCsvWithEditor",
+        "title": "%command.openCsvWithEditor.title%",
+        "icon": "$(table)"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "simpleExcelEditor.openCsvWithEditor",
+          "when": "resourceExtname == .csv && activeCustomEditorId != simpleExcelEditor.editor",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Simple Excel Editor",
       "properties": {

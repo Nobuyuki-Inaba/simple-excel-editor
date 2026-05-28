@@ -33,6 +33,14 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     })
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('simpleExcelEditor.openCsvWithEditor', async (uri?: vscode.Uri) => {
+      const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+      if (!targetUri) return;
+      await vscode.commands.executeCommand('vscode.openWith', targetUri, 'simpleExcelEditor.editor');
+    })
+  );
 }
 
 export function deactivate(): void {}
