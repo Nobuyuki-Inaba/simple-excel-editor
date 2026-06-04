@@ -1,4 +1,4 @@
-import { S, vscode, filterInput, statusBar, sheetTabsEl, registerUpdateStatus, sendSaveData, markDirty, requestSwitchSheet, WebviewLabels } from './state';
+import { S, vscode, filterInput, statusBar, sheetTabsEl, tableBody, registerUpdateStatus, sendSaveData, markDirty, requestSwitchSheet, WebviewLabels } from './state';
 import { render, renderSheetTabs, renderTable, renderBody, renderPagination,
          updateStatus, registerRenderHandlers, startSheetRename } from './render';
 import { selectCell, selectRow, selectColumn } from './selection';
@@ -6,6 +6,7 @@ import { startEdit, startHeaderEdit, commitActiveEdit, undo, redo,
          snapshot, isEditing } from './edit/cell';
 import { copySelection, pasteSelection } from './edit/clipboard';
 import { setupListeners, duplicateRow } from './data/operations';
+import { getDisplayRows } from './data/utils';
 import { applyFkHighlight } from './fkNav';
 
 // Break state→render circular dep: register updateStatus callback
@@ -145,6 +146,45 @@ ctxDeleteSheet.addEventListener('click', () => {
   });
 });
 
+// ── Keyboard navigation helpers ───────────────────────────────────────────────
+
+function getCursor(): { dispIdx: number; ci: number } | null {
+  const displayRows = getDisplayRows();
+  if (S.selectedCells.size === 0) return null;
+  if (S.selectedCells.size === 1 && S.anchorCell) {
+    const dispIdx = displayRows.findIndex(r => r.ri === S.anchorCell!.ri);
+    return dispIdx < 0 ? null : { dispIdx, ci: S.anchorCell.ci };
+  }
+  // Range: find corner opposite to anchor
+  const anchor = S.anchorCell!;
+  let minRi = Infinity, maxRi = -Infinity, minCi = Infinity, maxCi = -Infinity;
+  for (const key of S.selectedCells) {
+    const [r, c] = key.split(',').map(Number);
+    minRi = Math.min(minRi, r); maxRi = Math.max(maxRi, r);
+    minCi = Math.min(minCi, c); maxCi = Math.max(maxCi, c);
+  }
+  const curRi = anchor.ri === minRi ? maxRi : minRi;
+  const curCi = anchor.ci === minCi ? maxCi : minCi;
+  const dispIdx = displayRows.findIndex(r => r.ri === curRi);
+  return dispIdx < 0 ? null : { dispIdx, ci: curCi };
+}
+
+function navigateTo(dispIdx: number, ci: number, extend: boolean): void {
+  const displayRows = getDisplayRows();
+  dispIdx = Math.max(0, Math.min(displayRows.length - 1, dispIdx));
+  ci      = Math.max(0, Math.min(S.columns.length - 1, ci));
+  const { ri } = displayRows[dispIdx];
+  const targetPage = Math.floor(dispIdx / S.pageSize);
+  if (targetPage !== S.page) {
+    S.page = targetPage;
+    renderBody();
+    renderPagination();
+  }
+  selectCell(ri, ci, extend);
+  const td = tableBody.querySelector<HTMLElement>(`td[data-row="${ri}"][data-col="${ci}"]`);
+  td?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', e => {
@@ -184,6 +224,33 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') {
     contextMenu.classList.remove('visible');
+  }
+  // Arrow / Home / End / PageUp / PageDown navigation
+  const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
+  if (!isEditing() && NAV_KEYS.includes(e.key) && !e.ctrlKey && !e.metaKey) {
+    const displayRows = getDisplayRows();
+    if (displayRows.length === 0 || S.columns.length === 0) return;
+    e.preventDefault();
+    const cur = getCursor() ?? { dispIdx: 0, ci: 0 };
+    const { dispIdx, ci } = cur;
+    const extend = e.shiftKey;
+    if (e.key === 'ArrowUp')    navigateTo(dispIdx - 1, ci, extend);
+    if (e.key === 'ArrowDown')  navigateTo(dispIdx + 1, ci, extend);
+    if (e.key === 'ArrowLeft')  navigateTo(dispIdx, ci - 1, extend);
+    if (e.key === 'ArrowRight') navigateTo(dispIdx, ci + 1, extend);
+    if (e.key === 'Home')       navigateTo(dispIdx, 0, extend);
+    if (e.key === 'End')        navigateTo(dispIdx, S.columns.length - 1, extend);
+    if (e.key === 'PageUp')     navigateTo(dispIdx - S.pageSize, ci, extend);
+    if (e.key === 'PageDown')   navigateTo(dispIdx + S.pageSize, ci, extend);
+  }
+  // Ctrl+Home / Ctrl+End: jump to first / last cell
+  if (!isEditing() && (e.ctrlKey || e.metaKey) && (e.key === 'Home' || e.key === 'End')) {
+    const displayRows = getDisplayRows();
+    if (displayRows.length === 0 || S.columns.length === 0) return;
+    e.preventDefault();
+    const extend = e.shiftKey;
+    if (e.key === 'Home') navigateTo(0, 0, extend);
+    if (e.key === 'End')  navigateTo(displayRows.length - 1, S.columns.length - 1, extend);
   }
 });
 
