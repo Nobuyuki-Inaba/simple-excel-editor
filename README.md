@@ -187,6 +187,19 @@ npm run package
 
 ## Keyboard Shortcuts
 
+### Navigation (outside edit mode)
+
+| Key | Action |
+|-----|--------|
+| `Arrow keys` | Move selection one cell in any direction |
+| `Shift+Arrow` | Extend cell range selection |
+| `Home` / `End` | Jump to first / last column in the current row |
+| `PageUp` / `PageDown` | Move one page up / down |
+| `Ctrl+Home` | Jump to first cell (row 1, column 1) |
+| `Ctrl+End` | Jump to last cell (last row, last column) |
+
+### Editing
+
 | Key | Action |
 |-----|--------|
 | `Alt+N` | Insert NULL marker into selected cell(s) |
